@@ -16,7 +16,15 @@ LAST_PAGE = {
     }
 
 MSG = {
-    'class': 'share-chat-message__content-message',
+    'class': 'share-chat-message__message-content',
+    'name': {
+            'tag': 'p',
+            'class': 'share-chat-message__details--username'
+        },
+    'share': {
+            'tag': 'a',
+            'class': 'share-chat-message__link'
+        },
     'title': {
             'tag': 'div',
             'class': 'share-chat-message__status-bar'
@@ -34,8 +42,8 @@ MSG = {
 for page_num in range(1, GET_MAX):
     try:
         page = requests.get(URL + '/?page=' + str(page_num))
-    except requests.exceptions.RequestException as e:
-        print(f"[!] Error: {e}")
+    except requests.exceptions.RequestException as get_error:
+        print(f"[!] Error: {get_error}")
         sys.exit(1)
 
     soup = BeautifulSoup(page.content, 'html.parser')
@@ -47,15 +55,22 @@ for page_num in range(1, GET_MAX):
         sys.exit(1)
 
     for post in post_elems:
+        name_elem = post.find(MSG['name']['tag'], class_=MSG['name']['class'])
+        share_elem = post.find_all(MSG['share']['tag'], class_=MSG['share']['class'])[1]
         title_elem = post.find(MSG['title']['tag'], class_=MSG['title']['class'])
         date_elem = post.find(MSG['date']['tag'], class_=MSG['date']['class'])
         text_elem = post.find(MSG['text']['tag'], class_=MSG['text']['class'])
+
         try:
             text_elem.br.replace_with("\n")
         except AttributeError:
             pass
-        print(f'{user} : {title_elem.text.replace(date_elem.text, "")}  -  {date_elem.text}')
+
+        print(f'{(name_elem.text + " [" + share_elem.text + "]"):20} '
+              f'{("(" + date_elem.text + ")"):20} '
+              f'{title_elem.text.replace(date_elem.text, "")}')
         print(f'{text_elem.text.strip()}')
         print()
+
     if last_page_elem is not None:
         break
