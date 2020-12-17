@@ -5,6 +5,12 @@ import requests
 from bs4 import BeautifulSoup
 
 user = sys.argv[1].lower()
+
+if len(sys.argv) > 2:
+    POSTS_MAX = int(sys.argv[2])
+else:
+    POSTS_MAX = None
+
 URL = 'https://www.lse.co.uk/profiles/' + user
 
 # Maximum chat pages to dump
@@ -39,6 +45,7 @@ MSG = {
         },
     }
 
+posts_retrieved = 0
 for page_num in range(1, GET_MAX):
     try:
         page = requests.get(URL + '/?page=' + str(page_num))
@@ -55,6 +62,10 @@ for page_num in range(1, GET_MAX):
         sys.exit(1)
 
     for post in post_elems:
+        if POSTS_MAX is not None or 0:
+            if posts_retrieved >= POSTS_MAX:
+                sys.exit(0)
+
         name_elem = post.find(MSG['name']['tag'], class_=MSG['name']['class'])
         share_elem = post.find_all(MSG['share']['tag'], class_=MSG['share']['class'])[1]
         title_elem = post.find(MSG['title']['tag'], class_=MSG['title']['class'])
@@ -71,6 +82,8 @@ for page_num in range(1, GET_MAX):
               f'{title_elem.text.replace(date_elem.text, "")}')
         print(f'{text_elem.text.strip()}')
         print()
+
+        posts_retrieved += 1
 
     if last_page_elem is not None:
         break
