@@ -3,6 +3,7 @@
 import sys
 import requests
 from bs4 import BeautifulSoup
+from colorama import Fore
 
 user = sys.argv[1].lower()
 
@@ -77,9 +78,10 @@ for page_num in range(1, GET_MAX):
         except AttributeError:
             pass
 
-        print(f'{(name_elem.text + " [" + share_elem.text + "]"):20} '
+        # Fore: BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE, RESET
+        print(f'{(Fore.GREEN + name_elem.text + Fore.BLUE + " [" + share_elem.text + "]" + Fore.RESET):20} '
               f'{("(" + date_elem.text + ")"):20} '
-              f'{title_elem.text.replace(date_elem.text, "")}')
+              f'{Fore.CYAN}{title_elem.text.replace(date_elem.text, "")}{Fore.RESET}')
         print(f'{text_elem.text.strip()}')
         print()
 
