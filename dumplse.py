@@ -31,15 +31,25 @@ MSG = {
         },
     }
 
-for page in range(1, GET_MAX):
-    page = requests.get(URL + '/?page=' + str(page))
+for page_num in range(1, GET_MAX):
+    try:
+        page = requests.get(URL + '/?page=' + str(page_num))
+    except requests.exceptions.RequestException as e:
+        print(f"[!] Error: {e}")
+        sys.exit(1)
+
     soup = BeautifulSoup(page.content, 'html.parser')
-    msg_elems = soup.find_all(class_=MSG['class'])
+    post_elems = soup.find_all(class_=MSG['class'])
     last_page_elem = soup.find(LAST_PAGE['tag'], class_=LAST_PAGE['class'])
-    for msg in msg_elems:
-        title_elem = msg.find(MSG['title']['tag'], class_=MSG['title']['class'])
-        date_elem = msg.find(MSG['date']['tag'], class_=MSG['date']['class'])
-        text_elem = msg.find(MSG['text']['tag'], class_=MSG['text']['class'])
+
+    if len(post_elems) == 0:
+        print("[!] Nothing found")
+        sys.exit(1)
+
+    for post in post_elems:
+        title_elem = post.find(MSG['title']['tag'], class_=MSG['title']['class'])
+        date_elem = post.find(MSG['date']['tag'], class_=MSG['date']['class'])
+        text_elem = post.find(MSG['text']['tag'], class_=MSG['text']['class'])
         try:
             text_elem.br.replace_with("\n")
         except AttributeError:
