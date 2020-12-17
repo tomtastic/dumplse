@@ -40,8 +40,12 @@ for page in range(1, GET_MAX):
         title_elem = msg.find(MSG['title']['tag'], class_=MSG['title']['class'])
         date_elem = msg.find(MSG['date']['tag'], class_=MSG['date']['class'])
         text_elem = msg.find(MSG['text']['tag'], class_=MSG['text']['class'])
+        try:
+            text_elem.br.replace_with("\n")
+        except AttributeError:
+            pass
         print(f'{user} : {title_elem.text.replace(date_elem.text, "")}  -  {date_elem.text}')
-        print(f'{text_elem.text}')
+        print(f'{text_elem.text.strip()}')
         print()
     if last_page_elem is not None:
         break
