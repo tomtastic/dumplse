@@ -28,9 +28,9 @@ MSG = {
             'tag': 'p',
             'class': 'share-chat-message__details--username'
         },
-    'share': {
-            'tag': 'a',
-            'class': 'share-chat-message__link'
+    'details': {
+            'tag': 'p',
+            'class': 'share-chat-message__details'
         },
     'title': {
             'tag': 'div',
@@ -68,7 +68,8 @@ for page_num in range(1, GET_MAX):
                 sys.exit(0)
 
         name_elem = post.find(MSG['name']['tag'], class_=MSG['name']['class'])
-        share_elem = post.find_all(MSG['share']['tag'], class_=MSG['share']['class'])[1]
+        # No good class to find this with, but usually found at index 1 :
+        share_elem = post.find_all(MSG['details']['tag'], class_=MSG['details']['class'])[1]
         title_elem = post.find(MSG['title']['tag'], class_=MSG['title']['class'])
         date_elem = post.find(MSG['date']['tag'], class_=MSG['date']['class'])
         text_elem = post.find(MSG['text']['tag'], class_=MSG['text']['class'])
@@ -79,7 +80,7 @@ for page_num in range(1, GET_MAX):
             pass
 
         # Fore: BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE, RESET
-        print(f'{(Fore.GREEN + name_elem.text + Fore.BLUE + " [" + share_elem.text + "]" + Fore.RESET):20} '
+        print(f'{(Fore.GREEN + name_elem.text + Fore.BLUE + " [" + share_elem.text.replace("Posted in: ","") + "]" + Fore.RESET):20} '
               f'{("(" + date_elem.text + ")"):20} '
               f'{Fore.CYAN}{title_elem.text.replace(date_elem.text, "")}{Fore.RESET}')
         print(f'{text_elem.text.strip()}')
