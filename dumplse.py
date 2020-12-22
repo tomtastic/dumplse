@@ -17,6 +17,11 @@ URL = 'https://www.lse.co.uk/profiles/' + user
 # Maximum chat pages to dump
 GET_MAX = 50
 
+NEXT_PAGE = {
+    'tag': 'a',
+    'class': 'pager__link pager__link--next'
+    }
+
 LAST_PAGE = {
     'tag': 'a',
     'class': 'pager__link pager__link--next pager__link--disabled'
@@ -51,15 +56,16 @@ for page_num in range(1, GET_MAX):
     try:
         page = requests.get(URL + '/?page=' + str(page_num))
     except requests.exceptions.RequestException as get_error:
-        print(f"[!] Error: {get_error}")
+        print(f"{Fore.RED}[!] Error: {get_error}{Fore.RESET}")
         sys.exit(1)
 
     soup = BeautifulSoup(page.content, 'html.parser')
     post_elems = soup.find_all(class_=MSG['class'])
+    next_page_elem = soup.find(NEXT_PAGE['tag'], class_=NEXT_PAGE['class'])
     last_page_elem = soup.find(LAST_PAGE['tag'], class_=LAST_PAGE['class'])
 
     if len(post_elems) == 0:
-        print("[!] Nothing found")
+        print(f"{Fore.RED}[!] Nothing found{Fore.RESET}")
         sys.exit(1)
 
     for post in post_elems:
@@ -88,5 +94,11 @@ for page_num in range(1, GET_MAX):
 
         posts_retrieved += 1
 
+    if next_page_elem is None:
+        print(f'{Fore.RED}[!] No more pages found?{Fore.RESET}')
+        sys.exit(1)
+
     if last_page_elem is not None:
-        break
+        sys.exit(1)
+
+print(f'{Fore.RED}[!] Exceeded GET_MAX({GET_MAX}) pages.{Fore.RESET}')
