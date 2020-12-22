@@ -76,6 +76,7 @@ for page_num in range(1, GET_MAX):
         name_elem = post.find(MSG['name']['tag'], class_=MSG['name']['class'])
         # No good class to find this with, but usually found at index 1 :
         share_elem = post.find_all(MSG['details']['tag'], class_=MSG['details']['class'])[1]
+        price_elem = post.find_all(MSG['details']['tag'], class_=MSG['details']['class'])[3]
         title_elem = post.find(MSG['title']['tag'], class_=MSG['title']['class'])
         date_elem = post.find(MSG['date']['tag'], class_=MSG['date']['class'])
         text_elem = post.find(MSG['text']['tag'], class_=MSG['text']['class'])
@@ -86,7 +87,7 @@ for page_num in range(1, GET_MAX):
             pass
 
         # Fore: BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE, RESET
-        print(f'{(Fore.GREEN + name_elem.text + Fore.BLUE + " [" + share_elem.text.replace("Posted in: ","") + "]" + Fore.RESET):20} '
+        print(f'{(Fore.GREEN + name_elem.text + Fore.BLUE + " [" + share_elem.text.replace("Posted in: ","") + "]" + " @" + price_elem.text.replace("Price: ","") + Fore.RESET):26} '
               f'{("(" + date_elem.text + ")"):20} '
               f'{Fore.CYAN}{title_elem.text.replace(date_elem.text, "")}{Fore.RESET}')
         print(f'{text_elem.text.strip()}')
@@ -94,11 +95,11 @@ for page_num in range(1, GET_MAX):
 
         posts_retrieved += 1
 
-    if next_page_elem is None:
-        print(f'{Fore.RED}[!] No more pages found?{Fore.RESET}')
+    if last_page_elem is not None:
         sys.exit(1)
 
-    if last_page_elem is not None:
+    if next_page_elem is None:
+        print(f'{Fore.RED}[!] No more pages found?{Fore.RESET}')
         sys.exit(1)
 
 print(f'{Fore.RED}[!] Exceeded GET_MAX({GET_MAX}) pages.{Fore.RESET}')
