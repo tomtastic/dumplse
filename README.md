@@ -16,3 +16,5 @@
     Seems to have stalled around 18p, is there volume to drive this past those profit taking?
 
 * No rate limiting is implemented, and only attempts to get 'up to' 50 pages of posts *
+
+* Forums later enforce a user login before chat history can be viewed, archiving this tool for now *
