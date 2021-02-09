@@ -15,7 +15,7 @@ else:
 URL = "https://www.lse.co.uk/profiles/" + user
 
 # Maximum chat pages to dump
-GET_MAX = 50
+GET_MAX = 500
 
 NEXT_PAGE = {"tag": "a", "class": "pager__link pager__link--next"}
 
