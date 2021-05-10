@@ -2,7 +2,8 @@
 ## Dump all a users posts from LSE Share Chat forum
 
 
-    $ python3 dumplse.py tomtastic
+    $ poetry install
+    $ poetry run python dumplse.py tomtastic
     tomtastic [AFC]      (23 Dec 2019 07:53)  RE: W2T
     Agreed Sharesport, we can only wait and see. I'm not invested in PHE anymore, but still watch their progress with some interest.
     
