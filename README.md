@@ -1,7 +1,6 @@
 # dumplse.py
 ## Dump all a users posts from LSE Share Chat forum
 
-
     $ poetry install
     $ poetry run python dumplse.py tomtastic
     tomtastic [AFC]      (23 Dec 2019 07:53)  RE: W2T
