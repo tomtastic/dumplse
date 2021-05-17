@@ -17,3 +17,7 @@
     Seems to have stalled around 18p, is there volume to drive this past those profit taking?
 
 * No rate limiting is implemented, and only attempts to get 'up to' 50 pages of posts *
+
+## Generate requirements.txt for github dependancy graphs
+
+    $ poetry export --without-hashes > requirements.txt
