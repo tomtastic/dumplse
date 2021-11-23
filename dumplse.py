@@ -30,7 +30,7 @@ MSG = {
     "text": {"tag": "p", "class": "share-chat-message__message-text"},
 }
 
-posts_retrieved = 0
+POSTS_RETRIEVED = 0
 for page_num in range(1, GET_MAX):
     try:
         page = requests.get(URL + "/?page=" + str(page_num))
@@ -48,8 +48,8 @@ for page_num in range(1, GET_MAX):
         sys.exit(1)
 
     for post in post_elems:
-        if POSTS_MAX is not None or 0:
-            if posts_retrieved >= POSTS_MAX:
+        if POSTS_MAX is not None:
+            if POSTS_RETRIEVED >= POSTS_MAX:
                 sys.exit(0)
 
         name_elem = post.find(MSG["name"]["tag"], class_=MSG["name"]["class"])
@@ -71,14 +71,16 @@ for page_num in range(1, GET_MAX):
 
         # Fore: BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE, RESET
         print(
-            f'{(Fore.GREEN + name_elem.text + Fore.BLUE + " [" + share_elem.text.replace("Posted in: ","") + "]" + " @" + price_elem.text.replace("Price: ","") + Fore.RESET):26} '
+            f"{(Fore.GREEN + name_elem.text)}"
+            f'{Fore.BLUE + " [" + share_elem.text.replace("Posted in: ","") + "]"}'
+            f'{(" @" + price_elem.text.replace("Price: ","") + Fore.RESET)} '
             f'{("(" + date_elem.text + ")"):20} '
             f'{Fore.CYAN}{title_elem.text.replace(date_elem.text, "")}{Fore.RESET}'
         )
         print(f"{text_elem.text.strip()}")
         print()
 
-        posts_retrieved += 1
+        POSTS_RETRIEVED += 1
 
     if last_page_elem is not None:
         sys.exit(1)
