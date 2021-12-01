@@ -1,9 +1,21 @@
 #!/usr/bin/env python3
 """Dump all chat messages for a given www.lse.co.uk user"""
+import json
 import sys
 import requests
 from bs4 import BeautifulSoup
 from colorama import Fore
+from dataclasses import dataclass
+
+@dataclass
+class UserPost:
+    """Objects describing users posts"""
+    username: str
+    ticker: str
+    currprice: float
+    date: str
+    title: str
+    text: str
 
 user = sys.argv[1].lower()
 
