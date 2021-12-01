@@ -43,6 +43,7 @@ MSG = {
 }
 
 POSTS_RETRIEVED = 0
+ALL_POSTS = []
 for page_num in range(1, GET_MAX):
     try:
         page = requests.get(URL + "/?page=" + str(page_num))
@@ -75,21 +76,30 @@ for page_num in range(1, GET_MAX):
         title_elem = post.find(MSG["title"]["tag"], class_=MSG["title"]["class"])
         date_elem = post.find(MSG["date"]["tag"], class_=MSG["date"]["class"])
         text_elem = post.find(MSG["text"]["tag"], class_=MSG["text"]["class"])
-
+        
+        # Trim the elements, and assign to an object
+        share = share_elem.text.replace("Posted in: ","")
+        price = price_elem.text.replace("Price: ","")
+        title = title_elem.text.replace(date_elem.text, "")
+        text = text_elem.text.strip()
+        
         try:
             text_elem.br.replace_with("\n")
         except AttributeError:
             pass
 
+        user_post = UserPost(name_elem.text, share, price, date_elem.text, title, text)
+        ALL_POSTS.append(user_post)
+
         # Fore: BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE, RESET
         print(
-            f"{(Fore.GREEN + name_elem.text)}"
-            f'{Fore.BLUE + " [" + share_elem.text.replace("Posted in: ","") + "]"}'
-            f'{(" @" + price_elem.text.replace("Price: ","") + Fore.RESET)} '
-            f'{("(" + date_elem.text + ")"):20} '
-            f'{Fore.CYAN}{title_elem.text.replace(date_elem.text, "")}{Fore.RESET}'
+            f"{(Fore.GREEN + user_post.username)}"
+            f'{Fore.BLUE + " [" + user_post.ticker + "]"}'
+            f'{(" @" + user_post.currprice + Fore.RESET)} '
+            f'{("(" + user_post.date + ")"):20} '
+            f'{Fore.CYAN}{user_post.title}{Fore.RESET}'
         )
-        print(f"{text_elem.text.strip()}")
+        print(f"{user_post.text}")
         print()
 
         POSTS_RETRIEVED += 1
@@ -100,5 +110,7 @@ for page_num in range(1, GET_MAX):
     if next_page_elem is None:
         print(f"{Fore.RED}[!] No more pages found?{Fore.RESET}")
         sys.exit(1)
+
+
 
 print(f"{Fore.RED}[!] Exceeded GET_MAX({GET_MAX}) pages.{Fore.RESET}")
