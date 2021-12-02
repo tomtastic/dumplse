@@ -29,8 +29,8 @@ URL = "https://www.lse.co.uk/profiles/" + user
 # Maximum chat pages to dump
 GET_MAX = 500
 
+ALERT = {"class": "alert__list-item"}
 NEXT_PAGE = {"tag": "a", "class": "pager__link pager__link--next"}
-
 LAST_PAGE = {"tag": "a", "class": "pager__link pager__link--next pager__link--disabled"}
 
 MSG = {
@@ -52,12 +52,15 @@ for page_num in range(1, GET_MAX):
         sys.exit(1)
 
     soup = BeautifulSoup(page.content, "html.parser")
+    alerts = soup.find(class_=ALERT["class"])
     post_elems = soup.find_all(class_=MSG["class"])
     next_page_elem = soup.find(NEXT_PAGE["tag"], class_=NEXT_PAGE["class"])
     last_page_elem = soup.find(LAST_PAGE["tag"], class_=LAST_PAGE["class"])
 
     if len(post_elems) == 0:
         print(f"{Fore.RED}[!] Nothing found{Fore.RESET}")
+        if alerts is not None:
+            print(f"{Fore.RED}[!] {(alerts.text).split('.')[0]}{Fore.RESET}")
         sys.exit(1)
 
     for post in post_elems:
