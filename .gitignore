@@ -2,3 +2,4 @@ dump.*
 dist
 poetry.lock
 *.py.swp
+.venv
