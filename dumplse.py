@@ -11,6 +11,7 @@ from colorama import Fore
 
 
 def get_arguments():
+    """Parse the command arguments"""
     parser = argparse.ArgumentParser()
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--user", "-u", help="Dump user")
@@ -27,7 +28,7 @@ def get_arguments():
 
 @dataclass
 class ChatPost:
-    """Objects describing users posts"""
+    """Object describing a chat post"""
 
     username: str
     ticker: str
@@ -37,6 +38,7 @@ class ChatPost:
     text: str
 
     def __str__(self):
+        """Magic-method to pretty-print our object"""
         return (
             f"{(Fore.GREEN + self.username):20}"
             f'{Fore.BLUE + " [" + self.ticker + "]"}'
@@ -46,7 +48,8 @@ class ChatPost:
             f"{self.text}\n"
         )
 
-    def asJSON(self):
+    def as_json(self):
+        """Method to format our object as JSON"""
         return json.dumps(
             {
                 "username": self.username,
@@ -82,27 +85,36 @@ def get_posts_from_page(soup, ticker_symbol):
         return page_posts
 
     for post in post_elems:
-        name_elem = post.find(msg["name"]["tag"], class_=msg["name"]["class"]).getText()
+        elem = {}
+        elem["name"] = post.find(
+            msg["name"]["tag"], class_=msg["name"]["class"]
+        ).getText()
         # details element contains {share name, opinion, share price at date of posting}
-        details_elem = post.find_all(
+        elem["details"] = post.find_all(
             msg["details"]["tag"], class_=msg["details"]["class"]
         )
         if ticker_symbol:
-            ticker = ticker_symbol
-            price_elem = details_elem[1]
+            _ticker = ticker_symbol
+            elem["price"] = elem["details"][1]
         else:
-            ticker = details_elem[1].text.replace("Posted in: ", "")
-            price_elem = details_elem[3]
+            _ticker = elem["details"][1].text.replace("Posted in: ", "")
+            elem["price"] = elem["details"][3]
 
-        title_elem = post.find(msg["title"]["tag"], class_=msg["title"]["class"])
-        date_elem = post.find(msg["date"]["tag"], class_=msg["date"]["class"]).getText()
-        text_elem = post.find(msg["text"]["tag"], class_=msg["text"]["class"]).getText()
+        elem["title"] = post.find(msg["title"]["tag"], class_=msg["title"]["class"])
+        elem["date"] = post.find(
+            msg["date"]["tag"], class_=msg["date"]["class"]
+        ).getText()
+        elem["text"] = post.find(
+            msg["text"]["tag"], class_=msg["text"]["class"]
+        ).getText()
 
         # Trim the elements, and assign to an object
-        price = price_elem.text.replace("Price: ", "").lstrip()
-        title = title_elem.text.replace(date_elem, "")
+        price = elem["price"].text.replace("Price: ", "").lstrip()
+        title = elem["title"].text.replace(elem["date"], "")
 
-        chat_post = ChatPost(name_elem, ticker, price, date_elem, title, text_elem)
+        chat_post = ChatPost(
+            elem["name"], _ticker, price, elem["date"], title, elem["text"]
+        )
         page_posts.append(chat_post)
 
     return page_posts
@@ -153,8 +165,8 @@ if __name__ == "__main__":
                 print(f"{Fore.RED}[!] Alert detected: {alert.getText()}{Fore.RESET}")
             # break
 
-        for msg in get_posts_from_page(page_soup, ticker):
-            ALL_POSTS.append(msg)
+        for posts in get_posts_from_page(page_soup, ticker):
+            ALL_POSTS.append(posts)
 
         if page_soup.find(NEXT_PAGE["tag"], class_=NEXT_PAGE["class"]) is None:
             print(f"{Fore.RED}[!] No more pages found?{Fore.RESET}")
@@ -171,6 +183,6 @@ if __name__ == "__main__":
 
     for chatpost in ALL_POSTS[:POSTS_MAX]:
         if as_json:
-            print(chatpost.asJSON())
+            print(chatpost.as_json())
         else:
             print(chatpost)
