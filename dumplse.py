@@ -58,7 +58,7 @@ class ChatPost:
                 "date": self.date,
                 "title": self.title,
                 "text": self.text,
-            }
+            }, indent=4
         )
 
 
@@ -81,7 +81,7 @@ def get_posts_from_page(soup, ticker_symbol):
     post_elems = soup.find_all(class_=msg["class"])
 
     if len(post_elems) == 0:
-        print(f"{Fore.RED}[!] Nothing found{Fore.RESET}")
+        print(f"{Fore.RED}[!] Nothing found{Fore.RESET}", file = sys.stderr)
         return page_posts
 
     for post in post_elems:
@@ -152,7 +152,7 @@ if __name__ == "__main__":
             }
             page = requests.get(url + str(page_num), headers=headers)
         except requests.exceptions.RequestException as get_error:
-            print(f"{Fore.RED}[!] Error: {get_error}{Fore.RESET}")
+            print(f"{Fore.RED}[!] Error: {get_error}{Fore.RESET}", file = sys.stderr)
             sys.exit(1)
 
         page_soup = BeautifulSoup(page.content, "html.parser")
@@ -162,17 +162,17 @@ if __name__ == "__main__":
         if alerts is not None:
             # print(f"{Fore.RED}[!] Alert detected: {(alert_msg).split('.')[0]}{Fore.RESET}")
             for alert in alerts.find_all(ALERT["tag"]):
-                print(f"{Fore.RED}[!] Alert detected: {alert.getText()}{Fore.RESET}")
+                print(f"{Fore.RED}[!] Alert detected: {alert.getText()}{Fore.RESET}", file = sys.stderr)
             # break
 
         for posts in get_posts_from_page(page_soup, ticker):
             ALL_POSTS.append(posts)
 
         if page_soup.find(NEXT_PAGE["tag"], class_=NEXT_PAGE["class"]) is None:
-            print(f"{Fore.RED}[!] No more pages found?{Fore.RESET}")
+            print(f"{Fore.RED}[!] No more pages found?{Fore.RESET}", file = sys.stderr)
             break
         if page_soup.find(LAST_PAGE["tag"], class_=LAST_PAGE["class"]) is not None:
-            print(f"{Fore.GREEN}[+] Last chat page parsed{Fore.RESET}")
+            print(f"{Fore.GREEN}[+] Last chat page parsed{Fore.RESET}", file = sys.stderr)
             break
         if POSTS_MAX is not None:
             if len(ALL_POSTS) >= POSTS_MAX:
@@ -181,8 +181,16 @@ if __name__ == "__main__":
 
         time.sleep(PAGE_PAUSE)
 
-    for chatpost in ALL_POSTS[:POSTS_MAX]:
-        if as_json:
-            print(chatpost.as_json())
-        else:
+    # Not pretty, but we want valid JSON, use to avoid a comma after last post
+    num_posts = len(ALL_POSTS[:POSTS_MAX])
+
+    if as_json:
+        print("[",end='')
+        for index, chatpost in enumerate(ALL_POSTS[:POSTS_MAX]):
+            print(chatpost.as_json(), end='')
+            if index < num_posts-1:
+                print(",")
+        print("]")
+    else:
+        for chatpost in ALL_POSTS[:POSTS_MAX]:
             print(chatpost)
