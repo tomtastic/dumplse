@@ -16,7 +16,13 @@ def get_arguments():
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--user", "-u", help="Dump user")
     group.add_argument("--ticker", "-t", help="Dump ticker")
-    parser.add_argument("--posts", "-p", help="Max posts to return", type=int)
+    parser.add_argument(
+        "--posts",
+        "-p",
+        help="Maximum number of posts to return",
+        type=int,
+        default=16384,
+    )
     parser.add_argument(
         "--newlines", "-n", help="Dont strip newlines from posts", action="store_true"
     )
@@ -25,8 +31,8 @@ def get_arguments():
         "--debug", "-d", help="Print posts with repr", action="store_true"
     )
     args = parser.parse_args()
-    if args.posts < 1 or args.posts > 2 ** 14:
-        # Default 25 posts per page, max pages ~= 500, ergo 2^14 (16384)
+    if args.posts and (args.posts < 1 or args.posts > 16384):
+        # Default 25 posts per page, max pages ~= 500, ergo 16384
         # pylint: disable=raising-bad-type
         raise parser.error("posts value must be between 1 and 16384")
     if args.user:
@@ -112,7 +118,6 @@ def get_posts_from_page(soup, ticker_symbol, with_newlines):
     post_elems = soup.find_all(class_=msg["class"])
 
     if len(post_elems) == 0:
-        print(f"{Fore.RED}[!] Nothing found{Fore.RESET}", file=sys.stderr)
         return page_posts
 
     for post in post_elems:
@@ -174,11 +179,10 @@ def detect_alerts(soup):
             if alert.getText() == "Login failed":
                 # false positive
                 return False
-            else:
-                print(
-                    f"{Fore.RED}[!] Alert detected: {alert.getText()}{Fore.RESET}",
-                    file=sys.stderr,
-                )
+            print(
+                f"{Fore.RED}[!] Alert detected: {alert.getText()}{Fore.RESET}",
+                file=sys.stderr,
+            )
         return True
     return False
 
@@ -199,7 +203,8 @@ if __name__ == "__main__":
     ALL_POSTS = []
 
     # Parse the command arguments
-    (user, ticker, POSTS_MAX, newlines, as_json, debug) = get_arguments()
+    (user, ticker, posts_max, newlines, as_json, debug) = get_arguments()
+
     if user:
         url = "https://www.lse.co.uk/profiles/" + user + "/?page="
     if ticker:
@@ -222,32 +227,47 @@ if __name__ == "__main__":
         if detect_alerts(page_soup):
             break
 
-        for posts in get_posts_from_page(page_soup, ticker, newlines):
-            ALL_POSTS.append(posts)
+        soup_posts = get_posts_from_page(page_soup, ticker, newlines)
+        if len(soup_posts) == 0:
+            if debug:
+                print(
+                    f"DEBUG: No posts found on page {page_num}",
+                    file=sys.stderr,
+                )
+            break
+        for chatpost in soup_posts:
+            ALL_POSTS.append(chatpost)
 
         if page_soup.find(NEXT_PAGE["tag"], class_=NEXT_PAGE["class"]) is None:
-            print(f"{Fore.RED}[!] No more pages found?{Fore.RESET}", file=sys.stderr)
+            if debug:
+                print(
+                    f"DEBUG: Page {page_num}, and no next page found?", file=sys.stderr
+                )
             break
         if page_soup.find(LAST_PAGE["tag"], class_=LAST_PAGE["class"]) is not None:
-            print(f"{Fore.GREEN}[+] Last chat page parsed{Fore.RESET}", file=sys.stderr)
+            if debug:
+                print("DEBUG: Last chat page parsed", file=sys.stderr)
             break
-        if POSTS_MAX is not None:
-            if len(ALL_POSTS) >= POSTS_MAX:
-                # We don't want any more chat posts than we have now
-                break
+        if len(ALL_POSTS) >= posts_max:
+            # We don't want any more chat posts than we have now
+            if debug:
+                print(f"DEBUG: ALL_POSTS is >= {posts_max}", file=sys.stderr)
+            break
 
+        if debug:
+            print(f"DEBUG: Got {len(ALL_POSTS)} posts, sleeping...", file=sys.stderr)
         time.sleep(PAGE_PAUSE)
 
     if as_json:
         print("[", end="")
-        for index, chatpost in enumerate(ALL_POSTS[:POSTS_MAX]):
+        for index, chatpost in enumerate(ALL_POSTS[:posts_max]):
             print(chatpost.as_json(), end="")
-            if index < len(ALL_POSTS[:POSTS_MAX]) - 1:
+            if index < len(ALL_POSTS[:posts_max]) - 1:
                 print(",")
         print("]")
     elif debug:
-        for chatpost in ALL_POSTS[:POSTS_MAX]:
+        for chatpost in ALL_POSTS[:posts_max]:
             print(repr(chatpost), end="\n\n")
     else:
-        for chatpost in ALL_POSTS[:POSTS_MAX]:
+        for chatpost in ALL_POSTS[:posts_max]:
             print(chatpost)
