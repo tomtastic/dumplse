@@ -17,6 +17,9 @@ def get_arguments():
     group.add_argument("--user", "-u", help="Dump user")
     group.add_argument("--ticker", "-t", help="Dump ticker")
     parser.add_argument("--posts", "-p", help="Max posts to return", type=int)
+    parser.add_argument(
+        "--newlines", "-n", help="Dont strip newlines from posts", action="store_true"
+    )
     parser.add_argument("--json", "-j", help="Print posts as JSON", action="store_true")
     parser.add_argument(
         "--debug", "-d", help="Print posts with repr", action="store_true"
@@ -30,7 +33,7 @@ def get_arguments():
         args.user = args.user.lower()
     if args.ticker:
         args.ticker = args.ticker.upper()
-    return (args.user, args.ticker, args.posts, args.json, args.debug)
+    return (args.user, args.ticker, args.posts, args.newlines, args.json, args.debug)
 
 
 @dataclass
@@ -90,7 +93,7 @@ class ChatPost:
         )
 
 
-def get_posts_from_page(soup, ticker_symbol):
+def get_posts_from_page(soup, ticker_symbol, with_newlines):
     """
     Returns a list of chat message objects from a beautiful soup page object
     (optional) ticker_symbol argument, hints we're parsing all posts for a given share
@@ -134,9 +137,13 @@ def get_posts_from_page(soup, ticker_symbol):
         elem["date"] = post.find(
             msg["date"]["tag"], class_=msg["date"]["class"]
         ).getText()
-        elem["text"] = post.find(
-            msg["text"]["tag"], class_=msg["text"]["class"]
-        ).getText()
+        elem["text"] = post.find(msg["text"]["tag"], class_=msg["text"]["class"])
+        if with_newlines:
+            for br_tag in elem["text"].find_all("br"):
+                br_tag.replace_with("\n" + br_tag.text)
+        else:
+            for br_tag in elem["text"].find_all("br"):
+                br_tag.replace_with(" " + br_tag.text)
 
         # Trim the elements, and assign to an object
         price = elem["price"].text.replace("Price: ", "").lstrip()
@@ -150,7 +157,7 @@ def get_posts_from_page(soup, ticker_symbol):
             opinion,
             elem["date"],
             title,
-            elem["text"],
+            elem["text"].getText(),
         )
         page_posts.append(chat_post)
 
@@ -193,8 +200,7 @@ if __name__ == "__main__":
     ALL_POSTS = []
 
     # Parse the command arguments
-    (user, ticker, POSTS_MAX, as_json, debug) = get_arguments()
-
+    (user, ticker, POSTS_MAX, newlines, as_json, debug) = get_arguments()
     if user:
         url = "https://www.lse.co.uk/profiles/" + user + "/?page="
     if ticker:
@@ -217,7 +223,7 @@ if __name__ == "__main__":
         if detect_alerts(page_soup):
             break
 
-        for posts in get_posts_from_page(page_soup, ticker):
+        for posts in get_posts_from_page(page_soup, ticker, newlines):
             ALL_POSTS.append(posts)
 
         if page_soup.find(NEXT_PAGE["tag"], class_=NEXT_PAGE["class"]) is None:
