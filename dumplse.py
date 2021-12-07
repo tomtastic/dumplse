@@ -19,6 +19,10 @@ def get_arguments():
     parser.add_argument("--posts", "-p", help="Max posts to return", type=int)
     parser.add_argument("--json", "-j", help="Print posts as JSON", action="store_true")
     args = parser.parse_args()
+    if args.posts < 1 or args.posts > 2 ** 14:
+        # Default 25 posts per page, max pages ~= 500, ergo 2^14 (16384)
+        # pylint: disable=raising-bad-type
+        raise parser.error("posts value must be between 1 and 16384")
     if args.user:
         args.user = args.user.lower()
     if args.ticker:
@@ -58,7 +62,8 @@ class ChatPost:
                 "date": self.date,
                 "title": self.title,
                 "text": self.text,
-            }, indent=4
+            },
+            indent=4,
         )
 
 
@@ -81,7 +86,7 @@ def get_posts_from_page(soup, ticker_symbol):
     post_elems = soup.find_all(class_=msg["class"])
 
     if len(post_elems) == 0:
-        print(f"{Fore.RED}[!] Nothing found{Fore.RESET}", file = sys.stderr)
+        print(f"{Fore.RED}[!] Nothing found{Fore.RESET}", file=sys.stderr)
         return page_posts
 
     for post in post_elems:
@@ -120,9 +125,28 @@ def get_posts_from_page(soup, ticker_symbol):
     return page_posts
 
 
+def detect_alerts(soup):
+    """Detect login alert errors in soup object"""
+    alert_tags = {"tag": "li", "class": "alert alert--error"}
+    # alert_tags = {"tag": "li", "class": "alert__list-item"}
+    alerts = soup.find(class_=alert_tags["class"])
+    if alerts is not None:
+        # print(f"{Fore.RED}[!] Alert detected: {(alert_msg).split('.')[0]}{Fore.RESET}")
+        for alert in alerts.find_all(alert_tags["tag"]):
+            if alert.getText() == "Login failed":
+                # false positive
+                return False
+            else:
+                print(
+                    f"{Fore.RED}[!] Alert detected: {alert.getText()}{Fore.RESET}",
+                    file=sys.stderr,
+                )
+        return True
+    return False
+
+
 if __name__ == "__main__":
-    # Define how to detect login alerts and additional pages of chat messages
-    ALERT = {"tag": "li", "class": "alert alert--error"}
+    # Define how to detect additional pages of chat messages
     NEXT_PAGE = {"tag": "a", "class": "pager__link pager__link--next"}
     LAST_PAGE = {
         "tag": "a",
@@ -131,7 +155,7 @@ if __name__ == "__main__":
 
     # Be nice to the LSE server
     PAGE_PAUSE = 3
-    PAGES_MAX = 50
+    PAGES_MAX = 500
 
     # Keep the chat post objects in this list
     ALL_POSTS = []
@@ -152,27 +176,23 @@ if __name__ == "__main__":
             }
             page = requests.get(url + str(page_num), headers=headers)
         except requests.exceptions.RequestException as get_error:
-            print(f"{Fore.RED}[!] Error: {get_error}{Fore.RESET}", file = sys.stderr)
+            print(f"{Fore.RED}[!] Error: {get_error}{Fore.RESET}", file=sys.stderr)
             sys.exit(1)
 
         page_soup = BeautifulSoup(page.content, "html.parser")
 
         # On occasion, LSE will enforce logins before chat can be viewed :<
-        alerts = page_soup.find(class_=ALERT["class"])
-        if alerts is not None:
-            # print(f"{Fore.RED}[!] Alert detected: {(alert_msg).split('.')[0]}{Fore.RESET}")
-            for alert in alerts.find_all(ALERT["tag"]):
-                print(f"{Fore.RED}[!] Alert detected: {alert.getText()}{Fore.RESET}", file = sys.stderr)
-            # break
+        if detect_alerts(page_soup):
+            break
 
         for posts in get_posts_from_page(page_soup, ticker):
             ALL_POSTS.append(posts)
 
         if page_soup.find(NEXT_PAGE["tag"], class_=NEXT_PAGE["class"]) is None:
-            print(f"{Fore.RED}[!] No more pages found?{Fore.RESET}", file = sys.stderr)
+            print(f"{Fore.RED}[!] No more pages found?{Fore.RESET}", file=sys.stderr)
             break
         if page_soup.find(LAST_PAGE["tag"], class_=LAST_PAGE["class"]) is not None:
-            print(f"{Fore.GREEN}[+] Last chat page parsed{Fore.RESET}", file = sys.stderr)
+            print(f"{Fore.GREEN}[+] Last chat page parsed{Fore.RESET}", file=sys.stderr)
             break
         if POSTS_MAX is not None:
             if len(ALL_POSTS) >= POSTS_MAX:
@@ -181,14 +201,12 @@ if __name__ == "__main__":
 
         time.sleep(PAGE_PAUSE)
 
-    # Not pretty, but we want valid JSON, use to avoid a comma after last post
-    num_posts = len(ALL_POSTS[:POSTS_MAX])
 
     if as_json:
-        print("[",end='')
+        print("[", end="")
         for index, chatpost in enumerate(ALL_POSTS[:POSTS_MAX]):
-            print(chatpost.as_json(), end='')
-            if index < num_posts-1:
+            print(chatpost.as_json(), end="")
+            if index < len(ALL_POSTS[:POSTS_MAX]) - 1:
                 print(",")
         print("]")
     else:
