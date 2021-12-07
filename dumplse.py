@@ -18,6 +18,9 @@ def get_arguments():
     group.add_argument("--ticker", "-t", help="Dump ticker")
     parser.add_argument("--posts", "-p", help="Max posts to return", type=int)
     parser.add_argument("--json", "-j", help="Print posts as JSON", action="store_true")
+    parser.add_argument(
+        "--debug", "-d", help="Print posts with repr", action="store_true"
+    )
     args = parser.parse_args()
     if args.posts < 1 or args.posts > 2 ** 14:
         # Default 25 posts per page, max pages ~= 500, ergo 2^14 (16384)
@@ -27,7 +30,7 @@ def get_arguments():
         args.user = args.user.lower()
     if args.ticker:
         args.ticker = args.ticker.upper()
-    return (args.user, args.ticker, args.posts, args.json)
+    return (args.user, args.ticker, args.posts, args.json, args.debug)
 
 
 @dataclass
@@ -37,17 +40,36 @@ class ChatPost:
     username: str
     ticker: str
     atprice: float
+    opinion: str
     date: str
     title: str
     text: str
 
     def __str__(self):
         """Magic-method to pretty-print our object"""
+        if self.opinion == "No Opinion":
+            self.opinion = " "
+        if self.opinion == "Strong Buy":
+            self.opinion = Fore.GREEN + "\u21d1" + Fore.RESET  # ⇑
+        if self.opinion == "Weak Buy":
+            self.opinion = Fore.GREEN + "\u21e1" + Fore.RESET  # ⇡
+        if self.opinion == "Buy":
+            self.opinion = Fore.GREEN + "\u2191" + Fore.RESET  # ↑
+        if self.opinion == "Hold":
+            self.opinion = "\u2192"  # →
+        if self.opinion == "Sell":
+            self.opinion = Fore.RED + "\u2193" + Fore.RESET  # ↓
+        if self.opinion == "Weak Sell":
+            self.opinion = Fore.RED + "\u21e3" + Fore.RESET  # ⇣
+        if self.opinion == "Strong Sell":
+            self.opinion = Fore.RED + "\u21d3" + Fore.RESET  # ⇓
+
         return (
-            f"{(Fore.GREEN + self.username):20}"
+            f"{(Fore.GREEN + self.username):21}"
             f'{Fore.BLUE + " [" + self.ticker + "]"}'
             f'{(" @" + self.atprice + Fore.RESET)} '
             f'{("(" + self.date + ")"):20} '
+            f"{self.opinion} "
             f"{Fore.CYAN}{self.title}{Fore.RESET}\n"
             f"{self.text}\n"
         )
@@ -59,6 +81,7 @@ class ChatPost:
                 "username": self.username,
                 "ticker": self.ticker,
                 "atprice": self.atprice,
+                "opinion": self.opinion,
                 "date": self.date,
                 "title": self.title,
                 "text": self.text,
@@ -69,7 +92,7 @@ class ChatPost:
 
 def get_posts_from_page(soup, ticker_symbol):
     """
-    Attempt to extract all chat messages from a beautiful soup page object
+    Returns a list of chat message objects from a beautiful soup page object
     (optional) ticker_symbol argument, hints we're parsing all posts for a given share
     """
     page_posts = []
@@ -101,9 +124,11 @@ def get_posts_from_page(soup, ticker_symbol):
         if ticker_symbol:
             _ticker = ticker_symbol
             elem["price"] = elem["details"][1]
+            elem["opinion"] = elem["details"][2]
         else:
             _ticker = elem["details"][1].text.replace("Posted in: ", "")
             elem["price"] = elem["details"][3]
+            elem["opinion"] = elem["details"][4]
 
         elem["title"] = post.find(msg["title"]["tag"], class_=msg["title"]["class"])
         elem["date"] = post.find(
@@ -115,10 +140,17 @@ def get_posts_from_page(soup, ticker_symbol):
 
         # Trim the elements, and assign to an object
         price = elem["price"].text.replace("Price: ", "").lstrip()
+        opinion = elem["opinion"].getText()
         title = elem["title"].text.replace(elem["date"], "")
 
         chat_post = ChatPost(
-            elem["name"], _ticker, price, elem["date"], title, elem["text"]
+            elem["name"],
+            _ticker,
+            price,
+            opinion,
+            elem["date"],
+            title,
+            elem["text"],
         )
         page_posts.append(chat_post)
 
@@ -154,14 +186,14 @@ if __name__ == "__main__":
     }
 
     # Be nice to the LSE server
-    PAGE_PAUSE = 3
+    PAGE_PAUSE = 2
     PAGES_MAX = 500
 
     # Keep the chat post objects in this list
     ALL_POSTS = []
 
     # Parse the command arguments
-    (user, ticker, POSTS_MAX, as_json) = get_arguments()
+    (user, ticker, POSTS_MAX, as_json, debug) = get_arguments()
 
     if user:
         url = "https://www.lse.co.uk/profiles/" + user + "/?page="
@@ -201,7 +233,6 @@ if __name__ == "__main__":
 
         time.sleep(PAGE_PAUSE)
 
-
     if as_json:
         print("[", end="")
         for index, chatpost in enumerate(ALL_POSTS[:POSTS_MAX]):
@@ -209,6 +240,9 @@ if __name__ == "__main__":
             if index < len(ALL_POSTS[:POSTS_MAX]) - 1:
                 print(",")
         print("]")
+    elif debug:
+        for chatpost in ALL_POSTS[:POSTS_MAX]:
+            print(repr(chatpost), end="\n\n")
     else:
         for chatpost in ALL_POSTS[:POSTS_MAX]:
             print(chatpost)
