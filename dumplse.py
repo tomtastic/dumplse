@@ -167,7 +167,6 @@ def get_posts_from_page(soup, ticker_symbol, with_newlines):
 def detect_alerts(soup):
     """Detect login alert errors in soup object"""
     alert_tags = {"tag": "li", "class": "alert alert--error"}
-    # alert_tags = {"tag": "li", "class": "alert__list-item"}
     alerts = soup.find(class_=alert_tags["class"])
     if alerts is not None:
         # print(f"{Fore.RED}[!] Alert detected: {(alert_msg).split('.')[0]}{Fore.RESET}")
