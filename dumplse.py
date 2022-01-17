@@ -39,7 +39,21 @@ def get_arguments():
         args.user = args.user.lower()
     if args.ticker:
         args.ticker = args.ticker.upper()
-    return (args.user, args.ticker, args.posts, args.newlines, args.json, args.debug)
+
+    @dataclass
+    class Arguments:
+        """define a small class to hold our arguments"""
+
+        user: str
+        ticker: str
+        posts_max: int
+        newlines: bool
+        json: bool
+        debug: bool
+
+    return Arguments(
+        args.user, args.ticker, args.posts, args.newlines, args.json, args.debug
+    )
 
 
 @dataclass
@@ -118,7 +132,7 @@ def get_posts_from_page(soup, ticker_symbol, with_newlines):
     post_elems = soup.find_all(class_=msg["class"])
 
     if len(post_elems) == 0:
-        if debug:
+        if arg.debug:
             print(
                 f"DEBUG: Can't find any tags of class : {msg['class']}",
                 file=sys.stderr,
@@ -192,7 +206,7 @@ def detect_alerts(soup):
         for item in alert_errs.find_all(alert_tags["errors"]["tag"]):
             if item.getText() == "Login failed":
                 # Ignore login error alerts
-                if debug:
+                if arg.debug:
                     print(
                         f"DEBUG: Ignoring (alert_errs) for : {item.getText()}{Fore.RESET}",
                         file=sys.stderr,
@@ -206,11 +220,11 @@ def detect_alerts(soup):
 
     if alert_warns is not None:
         if "refresh the page" in alert_warns.getText():
-            if debug:
+            if arg.debug:
                 print(f"DEBUG: (alert_warns): {alert_warns}", file=sys.stderr)
         else:
             got_alert = True
-            if debug:
+            if arg.debug:
                 print(f"DEBUG: (alert_warns): {alert_warns}", file=sys.stderr)
             print(
                 f"{Fore.RED}[!] Alert(warning): {alert_warns.getText()}",
@@ -236,12 +250,12 @@ if __name__ == "__main__":
     ALL_POSTS = []
 
     # Parse the command arguments
-    (user, ticker, posts_max, newlines, as_json, debug) = get_arguments()
+    arg = get_arguments()
 
-    if user:
-        url = "https://www.lse.co.uk/profiles/" + user + "/?page="
-    if ticker:
-        url = "https://www.lse.co.uk/ShareChat.asp?ShareTicker=" + ticker + "&page="
+    if arg.user:
+        url = "https://www.lse.co.uk/profiles/" + arg.user + "/?page="
+    if arg.ticker:
+        url = "https://www.lse.co.uk/ShareChat.asp?ShareTicker=" + arg.ticker + "&page="
 
     for page_num in range(1, PAGES_MAX):
         try:
@@ -260,42 +274,42 @@ if __name__ == "__main__":
         if detect_alerts(page_soup):
             break
 
-        soup_posts = get_posts_from_page(page_soup, ticker, newlines)
+        soup_posts = get_posts_from_page(page_soup, arg.ticker, arg.newlines)
         if len(soup_posts) == 0:
             break
         for chatpost in soup_posts:
             ALL_POSTS.append(chatpost)
 
         if page_soup.find(NEXT_PAGE["tag"], class_=NEXT_PAGE["class"]) is None:
-            if debug:
+            if arg.debug:
                 print(
                     f"DEBUG: Page {page_num}, and no next page found?", file=sys.stderr
                 )
             break
         if page_soup.find(LAST_PAGE["tag"], class_=LAST_PAGE["class"]) is not None:
-            if debug:
+            if arg.debug:
                 print("DEBUG: Last chat page parsed", file=sys.stderr)
             break
-        if len(ALL_POSTS) >= posts_max:
+        if len(ALL_POSTS) >= arg.posts_max:
             # We don't want any more chat posts than we have now
-            if debug:
-                print(f"DEBUG: ALL_POSTS is >= {posts_max}", file=sys.stderr)
+            if arg.debug:
+                print(f"DEBUG: ALL_POSTS is >= {arg.posts_max}", file=sys.stderr)
             break
 
-        if debug:
+        if arg.debug:
             print(f"DEBUG: Got {len(ALL_POSTS)} posts, sleeping...", file=sys.stderr)
         time.sleep(PAGE_PAUSE)
 
-    if as_json:
+    if arg.json:
         print("[", end="")
-        for index, chatpost in enumerate(ALL_POSTS[:posts_max]):
+        for index, chatpost in enumerate(ALL_POSTS[: arg.posts_max]):
             print(chatpost.as_json(), end="")
-            if index < len(ALL_POSTS[:posts_max]) - 1:
+            if index < len(ALL_POSTS[: arg.posts_max]) - 1:
                 print(",")
         print("]")
-    elif debug:
-        for chatpost in ALL_POSTS[:posts_max]:
+    elif arg.debug:
+        for chatpost in ALL_POSTS[: arg.posts_max]:
             print(repr(chatpost), end="\n\n")
     else:
-        for chatpost in ALL_POSTS[:posts_max]:
+        for chatpost in ALL_POSTS[: arg.posts_max]:
             print(chatpost)
