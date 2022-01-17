@@ -14,46 +14,39 @@ def get_arguments():
     """Parse the command arguments"""
     parser = argparse.ArgumentParser()
     group = parser.add_mutually_exclusive_group()
-    group.add_argument("--user", "-u", help="Dump user")
-    group.add_argument("--ticker", "-t", help="Dump ticker")
+    group.add_argument("--user", "-u", help="Dump user", type=str)
+    group.add_argument("--ticker", "-t", help="Dump ticker", type=str)
     parser.add_argument(
-        "--posts",
+        "--posts_max",
         "-p",
         help="Maximum number of posts to return",
         type=int,
         default=16384,
     )
     parser.add_argument(
-        "--newlines", "-n", help="Dont strip newlines from posts", action="store_true"
+        "--newlines",
+        "-n",
+        help="Dont strip newlines from posts",
+        action="store_true",
     )
     parser.add_argument("--json", "-j", help="Print posts as JSON", action="store_true")
     parser.add_argument(
         "--debug", "-d", help="Print posts with repr", action="store_true"
     )
-    args = parser.parse_args()
-    if args.posts and (args.posts < 1 or args.posts > 16384):
+    _arg = parser.parse_args()
+    if len(sys.argv) == 1:
+        # pylint: disable=raising-bad-type
+        raise parser.error("you must specify either user or ticker")
+    if _arg.posts_max and (_arg.posts_max < 1 or _arg.posts_max > 16384):
         # Default 25 posts per page, max pages ~= 500, ergo 16384
         # pylint: disable=raising-bad-type
         raise parser.error("posts value must be between 1 and 16384")
-    if args.user:
-        args.user = args.user.lower()
-    if args.ticker:
-        args.ticker = args.ticker.upper()
+    if _arg.user:
+        _arg.user = _arg.user.lower()
+    if _arg.ticker:
+        _arg.ticker = _arg.ticker.upper()
 
-    @dataclass
-    class Arguments:
-        """define a small class to hold our arguments"""
-
-        user: str
-        ticker: str
-        posts_max: int
-        newlines: bool
-        json: bool
-        debug: bool
-
-    return Arguments(
-        args.user, args.ticker, args.posts, args.newlines, args.json, args.debug
-    )
+    return _arg
 
 
 @dataclass
