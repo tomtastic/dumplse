@@ -118,6 +118,15 @@ def get_posts_from_page(soup, ticker_symbol, with_newlines):
     post_elems = soup.find_all(class_=msg["class"])
 
     if len(post_elems) == 0:
+        if debug:
+            print(
+                f"DEBUG: Can't find any tags of class : {msg['class']}",
+                file=sys.stderr,
+            )
+            print(
+                f"DEBUG: Soup: {soup}",
+                file=sys.stderr,
+            )
         return page_posts
 
     for post in post_elems:
@@ -170,21 +179,45 @@ def get_posts_from_page(soup, ticker_symbol, with_newlines):
 
 
 def detect_alerts(soup):
-    """Detect login alert errors in soup object"""
-    alert_tags = {"tag": "li", "class": "alert alert--error"}
-    alerts = soup.find(class_=alert_tags["class"])
-    if alerts is not None:
-        # print(f"{Fore.RED}[!] Alert detected: {(alert_msg).split('.')[0]}{Fore.RESET}")
-        for alert in alerts.find_all(alert_tags["tag"]):
-            if alert.getText() == "Login failed":
-                # false positive
-                return False
+    """Detect alert errors in soup object which may cause failure to parse"""
+    got_alert = False
+    alert_tags = {
+        "errors": {"tag": "li", "class": "alert alert--error"},
+        "warnings": {"tag": "li", "class": "alert__list-item"},
+    }
+    alert_errs = soup.find(class_=alert_tags["errors"]["class"])
+    alert_warns = soup.find(class_=alert_tags["warnings"]["class"])
+
+    if alert_errs is not None:
+        for item in alert_errs.find_all(alert_tags["errors"]["tag"]):
+            if item.getText() == "Login failed":
+                # Ignore login error alerts
+                if debug:
+                    print(
+                        f"DEBUG: Ignoring (alert_errs) for : {item.getText()}{Fore.RESET}",
+                        file=sys.stderr,
+                    )
+            else:
+                got_alert = True
+                print(
+                    f"{Fore.RED}[!] Alert(error) : {item.getText()}{Fore.RESET}",
+                    file=sys.stderr,
+                )
+
+    if alert_warns is not None:
+        if "refresh the page" in alert_warns.getText():
+            if debug:
+                print(f"DEBUG: (alert_warns): {alert_warns}", file=sys.stderr)
+        else:
+            got_alert = True
+            if debug:
+                print(f"DEBUG: (alert_warns): {alert_warns}", file=sys.stderr)
             print(
-                f"{Fore.RED}[!] Alert detected: {alert.getText()}{Fore.RESET}",
+                f"{Fore.RED}[!] Alert(warning): {alert_warns.getText()}",
                 file=sys.stderr,
             )
-        return True
-    return False
+
+    return got_alert
 
 
 if __name__ == "__main__":
@@ -229,11 +262,6 @@ if __name__ == "__main__":
 
         soup_posts = get_posts_from_page(page_soup, ticker, newlines)
         if len(soup_posts) == 0:
-            if debug:
-                print(
-                    f"DEBUG: No posts found on page {page_num}",
-                    file=sys.stderr,
-                )
             break
         for chatpost in soup_posts:
             ALL_POSTS.append(chatpost)
