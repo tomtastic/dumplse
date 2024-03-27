@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import requests
 from bs4 import BeautifulSoup
 from colorama import Fore
+from hashlib import sha256
 
 
 def get_arguments():
@@ -83,12 +84,17 @@ class ChatPost:
         return (
             f"{(Fore.GREEN + self.username):21}"
             f'{Fore.BLUE + " [" + self.ticker + "]"}'
-            f'{(" @" + self.atprice + Fore.RESET)} '
+            f'{(" @" + str(self.atprice) + Fore.RESET)} '
             f'{("(" + self.date + ")"):20} '
             f"{self.opinion} "
             f"{Fore.CYAN}{self.title}{Fore.RESET}\n"
             f"{self.text}\n"
         )
+
+    def hash_post(self) -> str:
+        hash = sha256()
+        hash.update(bytes(self.date + self.username + self.title + self.text, 'utf8'))
+        return hash.hexdigest()
 
     def as_json(self):
         """Method to format our object as JSON"""
@@ -101,6 +107,7 @@ class ChatPost:
                 "date": self.date,
                 "title": self.title,
                 "text": self.text,
+                "hash": self.hash_post(),
             },
             indent=4,
         )
@@ -241,6 +248,7 @@ if __name__ == "__main__":
 
     # Keep the chat post objects in this list
     ALL_POSTS = []
+    SEEN_POSTS: dict[str, bool] = dict()  # [hash_of_post => True]
 
     # Parse the command arguments
     arg = get_arguments()
@@ -252,6 +260,7 @@ if __name__ == "__main__":
 
     for page_num in range(1, PAGES_MAX):
         try:
+            # firefox on MacOS
             headers = {
                 "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
                 " AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.2 Safari/605.1.15"
@@ -272,6 +281,7 @@ if __name__ == "__main__":
             break
         for chatpost in soup_posts:
             ALL_POSTS.append(chatpost)
+            SEEN_POSTS[chatpost.hash_post()] = True
 
         if page_soup.find(NEXT_PAGE["tag"], class_=NEXT_PAGE["class"]) is None:
             if arg.debug:
@@ -302,6 +312,9 @@ if __name__ == "__main__":
         print("]")
     elif arg.debug:
         for chatpost in ALL_POSTS[: arg.posts_max]:
+            if chatpost.hash_post() in SEEN_POSTS:
+                print("[+] We have seen the hash of this post")
+            print(chatpost.hash_post(), end="\n")
             print(repr(chatpost), end="\n\n")
     else:
         for chatpost in ALL_POSTS[: arg.posts_max]:
