@@ -229,13 +229,8 @@ def detect_alerts(soup):
             if arg.debug:
                 print(f"DEBUG: (alert_warns): {alert_warns}", file=sys.stderr)
         else:
-            got_alert = True
             if arg.debug:
                 print(f"DEBUG: (alert_warns): {alert_warns}", file=sys.stderr)
-            print(
-                f"{Fore.RED}[!] Alert(warning): {alert_warns.getText()}",
-                file=sys.stderr,
-            )
 
     return got_alert
 
@@ -271,6 +266,8 @@ if __name__ == "__main__":
                 "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
                 " AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.2 Safari/605.1.15"
             }
+            if arg.debug:
+                print(f"[+] Getting {url}")
             page = requests.get(url + str(page_num), headers=headers)
         except requests.exceptions.RequestException as get_error:
             print(f"{Fore.RED}[!] Error: {get_error}{Fore.RESET}", file=sys.stderr)
