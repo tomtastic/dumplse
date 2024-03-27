@@ -2,13 +2,14 @@
 """Dump all chat messages for a given www.lse.co.uk user or ticker"""
 import argparse
 import json
+import requests
 import sys
 import time
-from dataclasses import dataclass
-import requests
 from bs4 import BeautifulSoup
 from colorama import Fore
+from dataclasses import dataclass
 from hashlib import sha256
+from random import randrange
 
 
 def get_arguments():
@@ -99,7 +100,7 @@ class ChatPost:
 
     def hash_post(self) -> str:
         hash = sha256()
-        hash.update(bytes(self.date + self.username + self.title + self.text, 'utf8'))
+        hash.update(bytes(self.date + self.username + self.title + self.text, "utf8"))
         return hash.hexdigest()
 
     def as_json(self):
@@ -244,7 +245,7 @@ if __name__ == "__main__":
     }
 
     # Be nice to the LSE server
-    PAGE_PAUSE = 2
+    PAGE_PAUSE = randrange(7)
     PAGES_MAX = 500
 
     # Keep the chat post objects in this list
