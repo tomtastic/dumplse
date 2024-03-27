@@ -3,6 +3,7 @@
 import argparse
 import json
 import requests
+import sqlite3
 import sys
 import time
 from bs4 import BeautifulSoup
@@ -98,7 +99,7 @@ class ChatPost:
             f"{self.text}\n"
         )
 
-    def hash_post(self) -> str:
+    def hash(self) -> str:
         hash = sha256()
         hash.update(bytes(self.date + self.username + self.title + self.text, "utf8"))
         return hash.hexdigest()
@@ -114,10 +115,55 @@ class ChatPost:
                 "date": self.date,
                 "title": self.title,
                 "text": self.text,
-                "hash": self.hash_post(),
+                "hash": self.hash(),
             },
             indent=4,
         )
+
+
+def create_db(db_name: str) -> sqlite3.Connection:
+    """
+    Creates an sqlite3 database file containing hashes of posts we've seen
+    """
+    try:
+        conn = sqlite3.connect(db_name)
+        c = conn.cursor()
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS posts_seen
+            ([hash] TEXT PRIMARY KEY)
+        ''')
+        conn.commit()
+    except:
+        raise(ValueError(f'Error creating posts database'))
+    return conn
+
+
+def exists_in_db(conn, hash: str) -> bool:
+    """
+    Check if a post hash exists in the database
+    """
+    try:
+        c = conn.cursor()
+        c.execute(f'SELECT * FROM posts_seen WHERE hash = "{hash}"')
+        conn.commit()
+        results = c.fetchall()
+        if len(results) >= 1:
+            return True
+    except:
+        raise(ValueError(f'Error checking hash of post in database'))
+    return False
+
+
+def add_to_db(conn, hash: str):
+    """
+    Add a hash of a seen post to the database
+    """
+    try:
+        c = conn.cursor()
+        c.execute(f'INSERT INTO posts_seen (hash) VALUES ("{hash}")')
+        conn.commit()
+    except:
+        raise(ValueError(f'Error adding hash of post to database'))
 
 
 def get_posts_from_page(soup, ticker_symbol, with_newlines):
@@ -161,8 +207,8 @@ def get_posts_from_page(soup, ticker_symbol, with_newlines):
         )
         if ticker_symbol:
             _ticker = ticker_symbol
-            elem["price"] = elem["details"][1]
-            elem["opinion"] = elem["details"][2]
+            elem["price"] = elem["details"][2]
+            elem["opinion"] = elem["details"][3]
         else:
             _ticker = elem["details"][1].text.replace("Posted in: ", "")
             elem["price"] = elem["details"][3]
@@ -250,7 +296,6 @@ if __name__ == "__main__":
 
     # Keep the chat post objects in this list
     ALL_POSTS = []
-    SEEN_POSTS: dict[str, bool] = dict()  # [hash_of_post => True]
 
     # Parse the command arguments
     arg = get_arguments()
@@ -259,6 +304,10 @@ if __name__ == "__main__":
         url = "https://www.lse.co.uk/profiles/" + arg.user + "/?page="
     if arg.ticker:
         url = "https://www.lse.co.uk/ShareChat.asp?ShareTicker=" + arg.ticker + "&page="
+
+    # Create and/or open the seen posts database
+    conn = create_db('posts.sqlite3')
+    c = conn.cursor()
 
     for page_num in range(1, PAGES_MAX):
         try:
@@ -285,7 +334,6 @@ if __name__ == "__main__":
             break
         for chatpost in soup_posts:
             ALL_POSTS.append(chatpost)
-            SEEN_POSTS[chatpost.hash_post()] = True
 
         if page_soup.find(NEXT_PAGE["tag"], class_=NEXT_PAGE["class"]) is None:
             if arg.debug:
@@ -307,6 +355,7 @@ if __name__ == "__main__":
             print(f"DEBUG: Got {len(ALL_POSTS)} posts, sleeping...", file=sys.stderr)
         time.sleep(PAGE_PAUSE)
 
+    SEEN_SOME = False
     if arg.json:
         print("[", end="")
         if arg.reverse:
@@ -322,13 +371,23 @@ if __name__ == "__main__":
         print("]")
     elif arg.debug:
         for chatpost in ALL_POSTS[: arg.posts_max]:
-            if chatpost.hash_post() in SEEN_POSTS:
-                print("[+] We have seen the hash of this post")
-            print(chatpost.hash_post(), end="\n")
             print(repr(chatpost), end="\n\n")
     elif arg.reverse:
         for chatpost in reversed(ALL_POSTS[: arg.posts_max]):
-            print(chatpost)
+            if exists_in_db(conn, chatpost.hash()):
+                if not SEEN_SOME:
+                    print("[!] Not showing some posts already seen", file=sys.stderr)
+                SEEN_SOME = True
+            else:
+                add_to_db(conn, chatpost.hash())
+                print(chatpost)
     else:
         for chatpost in ALL_POSTS[: arg.posts_max]:
-            print(chatpost)
+            # Insert a hash of the post into the database
+            if exists_in_db(conn, chatpost.hash()):
+                if not SEEN_SOME:
+                    print("[!] Not showing some posts already seen", file=sys.stderr)
+                SEEN_SOME = True
+            else:
+                add_to_db(conn, chatpost.hash())
+                print(chatpost)
