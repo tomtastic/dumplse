@@ -309,10 +309,16 @@ if __name__ == "__main__":
 
     if arg.json:
         print("[", end="")
-        for index, chatpost in enumerate(ALL_POSTS[: arg.posts_max]):
-            print(chatpost.as_json(), end="")
-            if index < len(ALL_POSTS[: arg.posts_max]) - 1:
-                print(",")
+        if arg.reverse:
+            for index, chatpost in enumerate(reversed(ALL_POSTS[: arg.posts_max])):
+                print(chatpost.as_json(), end="")
+                if index < len(ALL_POSTS[: arg.posts_max]) - 1:
+                    print(",")
+        else:
+            for index, chatpost in enumerate(ALL_POSTS[: arg.posts_max]):
+                print(chatpost.as_json(), end="")
+                if index < len(ALL_POSTS[: arg.posts_max]) - 1:
+                    print(",")
         print("]")
     elif arg.debug:
         for chatpost in ALL_POSTS[: arg.posts_max]:
