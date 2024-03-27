@@ -1,4 +1,5 @@
 dump.*
+*.sqlite3
 dist
 poetry.lock
 *.py.swp
