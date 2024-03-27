@@ -30,6 +30,12 @@ def get_arguments():
         help="Dont strip newlines from posts",
         action="store_true",
     )
+    parser.add_argument(
+        "--reverse",
+        "-r",
+        help="Reverse post order",
+        action="store_true",
+    )
     parser.add_argument("--json", "-j", help="Print posts as JSON", action="store_true")
     parser.add_argument(
         "--debug", "-d", help="Print posts with repr", action="store_true"
@@ -316,6 +322,9 @@ if __name__ == "__main__":
                 print("[+] We have seen the hash of this post")
             print(chatpost.hash_post(), end="\n")
             print(repr(chatpost), end="\n\n")
+    elif arg.reverse:
+        for chatpost in reversed(ALL_POSTS[: arg.posts_max]):
+            print(chatpost)
     else:
         for chatpost in ALL_POSTS[: arg.posts_max]:
             print(chatpost)
