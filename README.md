@@ -47,6 +47,3 @@
     getafgrip        [RDSB] @1,692.40 (Today 10:36)          RE: Blue hydrogen
     It was an interesting take on the direction Japan is taking, also showing environmentalists concerned at Japan building its latest coal-fired power station & stating that the Japanese are importing 200 million tons of coal each year, largely from Australia. Then as BE says
     
-## Generate requirements.txt for github dependancy graphs
-
-    $ poetry export --without-hashes > requirements.txt
