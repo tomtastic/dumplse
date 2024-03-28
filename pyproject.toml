@@ -7,11 +7,20 @@ authors = ["tomtastic"]
 [tool.poetry.dependencies]
 python = "^3.9"
 requests = "^2.26.0"
-bs4 = "^0.0.1"
+beautifulsoup4 = "^4.12"
 colorama = "^0.4.4"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
+mypy = "^1.9.0"
 black = "^20.8b1"
+types-beautifulsoup4 = "^4.12"
+types-colorama = "^0.4.15"
+types-requests = "^2.30"
+
+[tool.mypy]
+python_executable = "/opt/homebrew/bin/python3"
+disallow_untyped_defs = "True"
+disallow_untyped_calls = "True"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
