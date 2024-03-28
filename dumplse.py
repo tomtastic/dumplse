@@ -125,9 +125,9 @@ def create_db(db_name: str) -> sqlite3.Connection:
     """
     Creates an sqlite3 database file containing hashes of posts we've seen
     """
+    conn = sqlite3.connect(db_name)
+    cursor = conn.cursor()
     try:
-        conn = sqlite3.connect(db_name)
-        cursor = conn.cursor()
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS posts_seen
@@ -135,22 +135,29 @@ def create_db(db_name: str) -> sqlite3.Connection:
         """
         )
         conn.commit()
-    except sqlite3.OperationalError as e:
-        print(f"Error creating posts database : {e}")
+    except sqlite3.Error as e:
+        conn.rollback()
+        print(f"Error creating posts table in database : {e}")
+    finally:
+        cursor.close()
     return conn
+
 
 def exists_in_db(conn: sqlite3.Connection, hash: str) -> bool:
     """
     Check if a post hash exists in the database
     """
+    cursor = conn.cursor()
     try:
-        cursor = conn.cursor()
-        rows = cursor.execute(f'SELECT * FROM posts_seen WHERE hash = "{hash}"').fetchall()
-        #conn.commit()
+        rows = cursor.execute(
+            f'SELECT * FROM posts_seen WHERE hash = "{hash}"'
+        ).fetchall()
         if len(rows) >= 1:
             return True
-    except sqlite3.OperationalError as e:
+    except sqlite3.Error as e:
         print(f"Error checking hash of post in database : {e}")
+    finally:
+        cursor.close()
     return False
 
 
@@ -158,15 +165,20 @@ def add_to_db(conn: sqlite3.Connection, hash: str) -> None:
     """
     Add a hash of a seen post to the database
     """
+    cursor = conn.cursor()
     try:
-        cursor = conn.cursor()
         cursor.execute(f'INSERT INTO posts_seen (hash) VALUES ("{hash}")')
         conn.commit()
     except sqlite3.OperationalError as e:
+        conn.rollback()
         print(f"Error adding hash of post to database : {e}")
+    finally:
+        cursor.close()
 
 
-def get_posts_from_page(soup: BeautifulSoup, ticker_symbol: str, with_newlines: bool) -> list:
+def get_posts_from_page(
+    soup: BeautifulSoup, ticker_symbol: str, with_newlines: bool
+) -> list:
     """
     Returns a list of chat message objects from a beautiful soup page object
     (optional) ticker_symbol argument, hints we're parsing all posts for a given share
