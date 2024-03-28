@@ -122,9 +122,7 @@ class ChatPost:
 
 
 def create_db(db_name: str) -> sqlite3.Connection:
-    """
-    Creates an sqlite3 database file containing hashes of posts we've seen
-    """
+    """Creates an sqlite3 database file containing hashes of posts we've seen"""
     conn = sqlite3.connect(db_name)
     cursor = conn.cursor()
     try:
@@ -144,9 +142,7 @@ def create_db(db_name: str) -> sqlite3.Connection:
 
 
 def exists_in_db(conn: sqlite3.Connection, hash: str) -> bool:
-    """
-    Check if a post hash exists in the database
-    """
+    """Check if a post hash exists in the database"""
     cursor = conn.cursor()
     try:
         rows = cursor.execute(
@@ -162,9 +158,7 @@ def exists_in_db(conn: sqlite3.Connection, hash: str) -> bool:
 
 
 def add_to_db(conn: sqlite3.Connection, hash: str) -> None:
-    """
-    Add a hash of a seen post to the database
-    """
+    """Add a hash of a seen post to the database"""
     cursor = conn.cursor()
     try:
         cursor.execute(f'INSERT INTO posts_seen (hash) VALUES ("{hash}")')
@@ -176,9 +170,7 @@ def add_to_db(conn: sqlite3.Connection, hash: str) -> None:
         cursor.close()
 
 
-def get_posts_from_page(
-    soup: BeautifulSoup, ticker_symbol: str, with_newlines: bool
-) -> list:
+def get_posts_from_page(soup: BeautifulSoup, arg: argparse.Namespace) -> list:
     """
     Returns a list of chat message objects from a beautiful soup page object
     (optional) ticker_symbol argument, hints we're parsing all posts for a given share
@@ -211,14 +203,14 @@ def get_posts_from_page(
     for post in post_elems:
         elem = {}
         elem["name"] = post.find(
-            msg["name"]["tag"], class_=msg["name"]["class"]
+            name=msg["name"]["tag"], attrs=msg["name"]["class"]
         ).getText()
         # details element contains {share name, opinion, share price at date of posting}
         elem["details"] = post.find_all(
-            msg["details"]["tag"], class_=msg["details"]["class"]
+            msg["details"]["tag"], attrs=msg["details"]["class"]
         )
-        if ticker_symbol:
-            _ticker = ticker_symbol
+        if arg.ticker:
+            _ticker = arg.ticker
             elem["price"] = elem["details"][2]
             elem["opinion"] = elem["details"][3]
         else:
@@ -226,12 +218,12 @@ def get_posts_from_page(
             elem["price"] = elem["details"][3]
             elem["opinion"] = elem["details"][4]
 
-        elem["title"] = post.find(msg["title"]["tag"], class_=msg["title"]["class"])
+        elem["title"] = post.find(msg["title"]["tag"], attrs=msg["title"]["class"])
         elem["date"] = post.find(
-            msg["date"]["tag"], class_=msg["date"]["class"]
+            msg["date"]["tag"], attrs=msg["date"]["class"]
         ).getText()
-        elem["text"] = post.find(msg["text"]["tag"], class_=msg["text"]["class"])
-        if with_newlines:
+        elem["text"] = post.find(msg["text"]["tag"], attrs=msg["text"]["class"])
+        if arg.newlines:
             for br_tag in elem["text"].find_all("br"):
                 br_tag.replace_with("\n" + br_tag.text)
         else:
@@ -257,7 +249,7 @@ def get_posts_from_page(
     return page_posts
 
 
-def detect_alerts(soup: BeautifulSoup) -> bool:
+def detect_alerts(soup: BeautifulSoup, arg: argparse.Namespace) -> bool:
     """Detect alert errors in soup object which may cause failure to parse"""
     got_alert = False
     alert_tags = {
@@ -294,33 +286,17 @@ def detect_alerts(soup: BeautifulSoup) -> bool:
     return got_alert
 
 
-if __name__ == "__main__":
+def get_all_pages(
+    url: str, arg: argparse.Namespace, PAGES_MAX: int, PAGE_PAUSE: int
+) -> list:
     # Define how to detect additional pages of chat messages
     NEXT_PAGE = {"tag": "a", "class": "pager__link pager__link--next"}
     LAST_PAGE = {
         "tag": "a",
         "class": "pager__link pager__link--next pager__link--disabled",
     }
-
-    # Be nice to the LSE server
-    PAGE_PAUSE = randrange(7)
-    PAGES_MAX = 500
-
     # Keep the chat post objects in this list
-    ALL_POSTS = []
-
-    # Parse the command arguments
-    arg = get_arguments()
-
-    url = ""
-    if arg.user:
-        url = "https://www.lse.co.uk/profiles/" + arg.user + "/?page="
-    if arg.ticker:
-        url = "https://www.lse.co.uk/ShareChat.asp?ShareTicker=" + arg.ticker + "&page="
-
-    # Create and/or open the seen posts database
-    conn = create_db("posts.sqlite3")
-    c = conn.cursor()
+    ALL_POSTS: list[ChatPost] = []
 
     for page_num in range(1, PAGES_MAX):
         try:
@@ -339,10 +315,11 @@ if __name__ == "__main__":
         page_soup = BeautifulSoup(page.content, "html.parser")
 
         # On occasion, LSE will enforce logins before chat can be viewed :<
-        if detect_alerts(page_soup):
-            break
+        if page_num == 1:
+            if detect_alerts(page_soup, arg):
+                break
 
-        soup_posts = get_posts_from_page(page_soup, arg.ticker, arg.newlines)
+        soup_posts = get_posts_from_page(page_soup, arg)
         if len(soup_posts) == 0:
             break
         for chatpost in soup_posts:
@@ -368,6 +345,13 @@ if __name__ == "__main__":
             print(f"DEBUG: Got {len(ALL_POSTS)} posts, sleeping...", file=sys.stderr)
         time.sleep(PAGE_PAUSE)
 
+    return ALL_POSTS
+
+
+def print_posts(
+    arg: argparse.Namespace, ALL_POSTS: list, conn: sqlite3.Connection
+) -> None:
+
     SEEN_SOME = False
     if arg.json:
         print("[", end="")
@@ -389,7 +373,10 @@ if __name__ == "__main__":
         for chatpost in reversed(ALL_POSTS[: arg.posts_max]):
             if exists_in_db(conn, chatpost.hash()):
                 if not SEEN_SOME:
-                    print("[!] Not showing some posts already seen\n", file=sys.stderr)
+                    print(
+                        f"{Fore.LIGHTBLACK_EX}[!] Not showing some posts already seen{Fore.RESET}\n",
+                        file=sys.stderr,
+                    )
                 SEEN_SOME = True
             else:
                 add_to_db(conn, chatpost.hash())
@@ -400,9 +387,38 @@ if __name__ == "__main__":
             # Insert a hash of the post into the database
             if exists_in_db(conn, chatpost.hash()):
                 if not SEEN_SOME:
-                    print("[!] Not showing some posts already seen\n", file=sys.stderr)
+                    print(
+                        f"{Fore.LIGHTBLACK_EX}[!] Not showing some posts already seen{Fore.RESET}\n",
+                        file=sys.stderr,
+                    )
                 SEEN_SOME = True
             else:
                 add_to_db(conn, chatpost.hash())
                 print(chatpost)
                 SEEN_SOME = False
+
+
+def main() -> None:
+
+    # Be nice to the LSE server
+    PAGE_PAUSE = randrange(7)
+    PAGES_MAX = 500
+
+    # Parse the command arguments
+    arg = get_arguments()
+
+    url = ""
+    if arg.user:
+        url = "https://www.lse.co.uk/profiles/" + arg.user + "/?page="
+    if arg.ticker:
+        url = "https://www.lse.co.uk/ShareChat.asp?ShareTicker=" + arg.ticker + "&page="
+
+    # Create and/or open the seen posts database
+    conn = create_db("posts.sqlite3")
+    ALL_POSTS = get_all_pages(url, arg, PAGES_MAX, PAGE_PAUSE)
+    print_posts(arg, ALL_POSTS, conn)
+    conn.close()
+
+
+if __name__ == "__main__":
+    main()
