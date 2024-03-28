@@ -13,7 +13,7 @@ from hashlib import sha256
 from random import randrange
 
 
-def get_arguments():
+def get_arguments() -> argparse.Namespace:
     """Parse the command arguments"""
     parser = argparse.ArgumentParser()
     group = parser.add_mutually_exclusive_group()
@@ -70,7 +70,7 @@ class ChatPost:
     title: str
     text: str
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Magic-method to pretty-print our object"""
         if self.opinion == "No Opinion":
             self.opinion = " "
@@ -104,7 +104,7 @@ class ChatPost:
         hash.update(bytes(self.date + self.username + self.title + self.text, "utf8"))
         return hash.hexdigest()
 
-    def as_json(self):
+    def as_json(self) -> str:
         """Method to format our object as JSON"""
         return json.dumps(
             {
@@ -127,51 +127,51 @@ def create_db(db_name: str) -> sqlite3.Connection:
     """
     try:
         conn = sqlite3.connect(db_name)
-        c = conn.cursor()
-        c.execute('''
+        cursor = conn.cursor()
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS posts_seen
             ([hash] TEXT PRIMARY KEY)
-        ''')
+        """
+        )
         conn.commit()
-    except:
-        raise(ValueError(f'Error creating posts database'))
+    except sqlite3.OperationalError as e:
+        print(f"Error creating posts database : {e}")
     return conn
 
-
-def exists_in_db(conn, hash: str) -> bool:
+def exists_in_db(conn: sqlite3.Connection, hash: str) -> bool:
     """
     Check if a post hash exists in the database
     """
     try:
-        c = conn.cursor()
-        c.execute(f'SELECT * FROM posts_seen WHERE hash = "{hash}"')
-        conn.commit()
-        results = c.fetchall()
-        if len(results) >= 1:
+        cursor = conn.cursor()
+        rows = cursor.execute(f'SELECT * FROM posts_seen WHERE hash = "{hash}"').fetchall()
+        #conn.commit()
+        if len(rows) >= 1:
             return True
-    except:
-        raise(ValueError(f'Error checking hash of post in database'))
+    except sqlite3.OperationalError as e:
+        print(f"Error checking hash of post in database : {e}")
     return False
 
 
-def add_to_db(conn, hash: str):
+def add_to_db(conn: sqlite3.Connection, hash: str) -> None:
     """
     Add a hash of a seen post to the database
     """
     try:
-        c = conn.cursor()
-        c.execute(f'INSERT INTO posts_seen (hash) VALUES ("{hash}")')
+        cursor = conn.cursor()
+        cursor.execute(f'INSERT INTO posts_seen (hash) VALUES ("{hash}")')
         conn.commit()
-    except:
-        raise(ValueError(f'Error adding hash of post to database'))
+    except sqlite3.OperationalError as e:
+        print(f"Error adding hash of post to database : {e}")
 
 
-def get_posts_from_page(soup, ticker_symbol, with_newlines):
+def get_posts_from_page(soup: BeautifulSoup, ticker_symbol: str, with_newlines: bool) -> list:
     """
     Returns a list of chat message objects from a beautiful soup page object
     (optional) ticker_symbol argument, hints we're parsing all posts for a given share
     """
-    page_posts = []
+    page_posts: list[ChatPost] = []
 
     msg = {
         "class": "share-chat-message__message-content",
@@ -245,7 +245,7 @@ def get_posts_from_page(soup, ticker_symbol, with_newlines):
     return page_posts
 
 
-def detect_alerts(soup):
+def detect_alerts(soup: BeautifulSoup) -> bool:
     """Detect alert errors in soup object which may cause failure to parse"""
     got_alert = False
     alert_tags = {
@@ -300,13 +300,14 @@ if __name__ == "__main__":
     # Parse the command arguments
     arg = get_arguments()
 
+    url = ""
     if arg.user:
         url = "https://www.lse.co.uk/profiles/" + arg.user + "/?page="
     if arg.ticker:
         url = "https://www.lse.co.uk/ShareChat.asp?ShareTicker=" + arg.ticker + "&page="
 
     # Create and/or open the seen posts database
-    conn = create_db('posts.sqlite3')
+    conn = create_db("posts.sqlite3")
     c = conn.cursor()
 
     for page_num in range(1, PAGES_MAX):
@@ -376,18 +377,20 @@ if __name__ == "__main__":
         for chatpost in reversed(ALL_POSTS[: arg.posts_max]):
             if exists_in_db(conn, chatpost.hash()):
                 if not SEEN_SOME:
-                    print("[!] Not showing some posts already seen", file=sys.stderr)
+                    print("[!] Not showing some posts already seen\n", file=sys.stderr)
                 SEEN_SOME = True
             else:
                 add_to_db(conn, chatpost.hash())
                 print(chatpost)
+                SEEN_SOME = False
     else:
         for chatpost in ALL_POSTS[: arg.posts_max]:
             # Insert a hash of the post into the database
             if exists_in_db(conn, chatpost.hash()):
                 if not SEEN_SOME:
-                    print("[!] Not showing some posts already seen", file=sys.stderr)
+                    print("[!] Not showing some posts already seen\n", file=sys.stderr)
                 SEEN_SOME = True
             else:
                 add_to_db(conn, chatpost.hash())
                 print(chatpost)
+                SEEN_SOME = False
