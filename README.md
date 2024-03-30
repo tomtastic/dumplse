@@ -23,6 +23,7 @@
                             Maximum number of posts to return
       --newlines, -n        Dont strip newlines from posts
       --reverse, -r         Reverse post order
+      --save, -s            Save hashes of viewed posts to sqliteDB, dont show posts again
       --json, -j            Print posts as JSON
       --debug, -d           Print posts with repr
 ```

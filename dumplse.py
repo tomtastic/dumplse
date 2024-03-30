@@ -38,6 +38,12 @@ def get_arguments() -> argparse.Namespace:
         help="Reverse post order",
         action="store_true",
     )
+    parser.add_argument(
+        "--save",
+        "-s",
+        help="Save hashes of viewed posts to sqliteDB, dont show posts again",
+        action="store_true",
+    )
     parser.add_argument("--json", "-j", help="Print posts as JSON", action="store_true")
     parser.add_argument(
         "--debug", "-d", help="Print posts with repr", action="store_true"
@@ -349,7 +355,7 @@ def get_all_pages(
 
 
 def print_posts(
-    arg: argparse.Namespace, ALL_POSTS: list, conn: sqlite3.Connection
+    arg: argparse.Namespace, ALL_POSTS: list, conn: None | sqlite3.Connection = None
 ) -> None:
 
     SEEN_SOME = False
@@ -371,31 +377,39 @@ def print_posts(
             print(repr(chatpost), end="\n\n")
     elif arg.reverse:
         for chatpost in reversed(ALL_POSTS[: arg.posts_max]):
-            if exists_in_db(conn, chatpost.hash()):
-                if not SEEN_SOME:
-                    print(
-                        f"{Fore.LIGHTBLACK_EX}[!] Not showing some posts already seen{Fore.RESET}\n",
-                        file=sys.stderr,
-                    )
-                SEEN_SOME = True
+            if arg.save:
+                if isinstance(conn, sqlite3.Connection):
+                    if exists_in_db(conn, chatpost.hash()):
+                        if not SEEN_SOME:
+                            print(
+                                f"{Fore.LIGHTBLACK_EX}[!] Not showing some posts already seen{Fore.RESET}\n",
+                                file=sys.stderr,
+                            )
+                        SEEN_SOME = True
+                    else:
+                        add_to_db(conn, chatpost.hash())
+                        print(chatpost)
+                        SEEN_SOME = False
             else:
-                add_to_db(conn, chatpost.hash())
                 print(chatpost)
-                SEEN_SOME = False
     else:
         for chatpost in ALL_POSTS[: arg.posts_max]:
-            # Insert a hash of the post into the database
-            if exists_in_db(conn, chatpost.hash()):
-                if not SEEN_SOME:
-                    print(
-                        f"{Fore.LIGHTBLACK_EX}[!] Not showing some posts already seen{Fore.RESET}\n",
-                        file=sys.stderr,
-                    )
-                SEEN_SOME = True
+            if arg.save:
+                if isinstance(conn, sqlite3.Connection):
+                    # Insert a hash of the post into the database
+                    if exists_in_db(conn, chatpost.hash()):
+                        if not SEEN_SOME:
+                            print(
+                                f"{Fore.LIGHTBLACK_EX}[!] Not showing some posts already seen{Fore.RESET}\n",
+                                file=sys.stderr,
+                            )
+                        SEEN_SOME = True
+                    else:
+                        add_to_db(conn, chatpost.hash())
+                        print(chatpost)
+                        SEEN_SOME = False
             else:
-                add_to_db(conn, chatpost.hash())
                 print(chatpost)
-                SEEN_SOME = False
 
 
 def main() -> None:
@@ -413,11 +427,15 @@ def main() -> None:
     if arg.ticker:
         url = "https://www.lse.co.uk/ShareChat.asp?ShareTicker=" + arg.ticker + "&page="
 
-    # Create and/or open the seen posts database
-    conn = create_db("posts.sqlite3")
-    ALL_POSTS = get_all_pages(url, arg, PAGES_MAX, PAGE_PAUSE)
-    print_posts(arg, ALL_POSTS, conn)
-    conn.close()
+    if arg.save:
+        # Create and/or open the seen posts database
+        conn = create_db("posts.sqlite3")
+        ALL_POSTS = get_all_pages(url, arg, PAGES_MAX, PAGE_PAUSE)
+        print_posts(arg, ALL_POSTS, conn)
+        conn.close()
+    else:
+        ALL_POSTS = get_all_pages(url, arg, PAGES_MAX, PAGE_PAUSE)
+        print_posts(arg, ALL_POSTS)
 
 
 if __name__ == "__main__":
