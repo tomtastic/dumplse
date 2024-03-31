@@ -9,6 +9,7 @@ import time
 from bs4 import BeautifulSoup
 from colorama import Fore
 from dataclasses import dataclass
+from datetime import datetime
 from hashlib import sha256
 from random import randrange
 
@@ -99,7 +100,7 @@ class ChatPost:
             f"{(Fore.GREEN + self.username):21}"
             f'{Fore.BLUE + " [" + self.ticker + "]"}'
             f'{(" @" + str(self.atprice) + Fore.RESET)} '
-            f'{("(" + self.date + ")"):20} '
+                f'{("(" + str(self.date) + ")"):20} '
             f"{self.opinion} "
             f"{Fore.CYAN}{self.title}{Fore.RESET}\n"
             f"{self.text}\n"
@@ -181,6 +182,23 @@ def get_posts_from_page(soup: BeautifulSoup, arg: argparse.Namespace) -> list:
     Returns a list of chat message objects from a beautiful soup page object
     (optional) ticker_symbol argument, hints we're parsing all posts for a given share
     """
+    def string_to_datetime(post_time: str) -> str:
+        # Convert the date string to a datetime object
+        if "Today" in str(post_time):
+            # "Today 15.32"
+            time = str(post_time)[6:]
+            todays_date = datetime.today().strftime("%d %b %Y")
+            post_time = str(todays_date) + " " + str(time)
+
+        try:
+            # "29 Mar 2024 15:32"
+            post_time = datetime.strptime(post_time, "%d %b %Y %H:%M")
+        except:
+            print(f"[!] Something went wrong parsing {post_time}")
+            pass
+
+        return str(post_time)
+
     page_posts: list[ChatPost] = []
 
     msg = {
@@ -246,7 +264,7 @@ def get_posts_from_page(soup: BeautifulSoup, arg: argparse.Namespace) -> list:
             _ticker,
             price,
             opinion,
-            elem["date"],
+            string_to_datetime(elem["date"]),
             title,
             elem["text"].getText(),
         )
