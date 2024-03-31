@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dump all chat messages for a given www.lse.co.uk user or ticker"""
+"""Dump chat messages for a given www.lse.co.uk user or ticker"""
 import argparse
 import json
 import requests
@@ -100,7 +100,7 @@ class ChatPost:
             f"{(Fore.GREEN + self.username):21}"
             f'{Fore.BLUE + " [" + self.ticker + "]"}'
             f'{(" @" + str(self.atprice) + Fore.RESET)} '
-                f'{("(" + str(self.date) + ")"):20} '
+            f'{("(" + str(self.date) + ")"):20} '
             f"{self.opinion} "
             f"{Fore.CYAN}{self.title}{Fore.RESET}\n"
             f"{self.text}\n"
@@ -136,7 +136,14 @@ def create_db(db_name: str) -> sqlite3.Connection:
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS posts_seen
-            ([hash] TEXT PRIMARY KEY)
+            (hash TEXT PRIMARY KEY,
+            username TEXT,
+            ticker TEXT,
+            atprice TEXT,
+            opinion TEXT,
+            date TEXT,
+            title TEXT,
+            text TEXT)
         """
         )
         conn.commit()
@@ -164,15 +171,18 @@ def exists_in_db(conn: sqlite3.Connection, hash: str) -> bool:
     return False
 
 
-def add_to_db(conn: sqlite3.Connection, hash: str) -> None:
+def add_to_db(conn: sqlite3.Connection, hash: str, p: ChatPost) -> None:
     """Add a hash of a seen post to the database"""
     cursor = conn.cursor()
     try:
-        cursor.execute(f'INSERT INTO posts_seen (hash) VALUES ("{hash}")')
+        cursor.execute(
+            "INSERT INTO posts_seen (hash, username, ticker, atprice, opinion, date, title, text) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (hash, p.username, p.ticker, p.atprice, p.opinion, p.date, p.title, p.text),
+        )
         conn.commit()
     except sqlite3.OperationalError as e:
+        print(f"[!] Error adding hash of post {repr(p)} to database : {e}")
         conn.rollback()
-        print(f"Error adding hash of post to database : {e}")
     finally:
         cursor.close()
 
@@ -182,6 +192,7 @@ def get_posts_from_page(soup: BeautifulSoup, arg: argparse.Namespace) -> list:
     Returns a list of chat message objects from a beautiful soup page object
     (optional) ticker_symbol argument, hints we're parsing all posts for a given share
     """
+
     def string_to_datetime(post_time: str) -> str:
         # Convert the date string to a datetime object
         if "Today" in str(post_time):
@@ -423,7 +434,7 @@ def print_posts(
                             )
                         SEEN_SOME = True
                     else:
-                        add_to_db(conn, chatpost.hash())
+                        add_to_db(conn, chatpost.hash(), chatpost)
                         print(chatpost)
                         SEEN_SOME = False
             else:
