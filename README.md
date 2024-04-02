@@ -22,9 +22,7 @@
       --posts_max POSTS_MAX, -p POSTS_MAX
                             Maximum number of posts to return
       --newlines, -n        Dont strip newlines from posts
-      --reverse, -r         Reverse post order
-      --save, -s            Save hashes of viewed posts to sqliteDB, dont show posts again
-      --json, -j            Print posts as JSON
+      --save, -s            Save viewed posts to SQLite DB, dont show posts again
       --debug, -d           Print posts with repr
 ```
 
@@ -42,30 +40,6 @@
     $ poetry run python dumplse.py -u tomtastic -p 1 -n
     tomtastic        [AFC] @14.00 (23 Dec 2019 07:39)    RE: W2T
     Of course, for the White family and Tim Yeo, they get to exchange their presumed worthless shares in W2T for a decent chunk of PHE. Quite a nice move from their perspective, but I look forward be being told what PHE will materially gain from the arrangements.
-```
-
-### Dump latest posts for a user (limited to 2 posts, formatted as JSON)
-
-```json
-    $ poetry run python dumplse.py -u tomtastic -p 2 -j
-    [{
-        "username": "tomtastic",
-        "ticker": "AFC",
-        "atprice": "58.50",
-        "opinion": "Strong Buy",
-        "date": "26 Aug 2021 13:56",
-        "title": "RE: Mace Podcast & AFC",
-        "text": "Iain is listening to his twitter :)"
-    },
-    {
-        "username": "tomtastic",
-        "ticker": "AFC",
-        "atprice": "14.00",
-        "opinion": "No Opinion",
-        "date": "23 Dec 2019 07:53",
-        "title": "RE: W2T",
-        "text": "Agreed Sharesport, we can only wait and see. I'm not invested in PHE anymore, but still watch their progress with some interest."
-    }]
 ```
 
 ### Dump latest posts for a ticker symbol (limited to 2 posts, with unstripped-newlines)
