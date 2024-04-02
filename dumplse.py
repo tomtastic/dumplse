@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 from colorama import Fore
 from dataclasses import dataclass
 from datetime import datetime
+from halo import Halo
 from hashlib import sha256
 from random import randrange
 
@@ -125,7 +126,7 @@ def create_db(db_name: str) -> sqlite3.Connection:
         conn.commit()
     except sqlite3.Error as e:
         conn.rollback()
-        print(f"Error creating posts table in database : {e}")
+        print(f"\rError creating posts table in database : {e}")
     finally:
         cursor.close()
     return conn
@@ -141,7 +142,7 @@ def exists_in_db(conn: sqlite3.Connection, hash: str) -> bool:
         if len(rows) >= 1:
             return True
     except sqlite3.Error as e:
-        print(f"Error checking hash of post in database : {e}")
+        print(f"\rError checking hash of post in database : {e}")
     finally:
         cursor.close()
     return False
@@ -157,7 +158,7 @@ def add_to_db(conn: sqlite3.Connection, hash: str, p: ChatPost) -> None:
         )
         conn.commit()
     except sqlite3.OperationalError as e:
-        print(f"[!] Error adding hash of post {repr(p)} to database : {e}")
+        print(f"\r[!] Error adding hash of post {repr(p)} to database : {e}")
         conn.rollback()
     finally:
         cursor.close()
@@ -181,7 +182,7 @@ def get_posts_from_page(soup: BeautifulSoup, arg: argparse.Namespace) -> list:
             # "29 Mar 2024 15:32"
             post_time = datetime.strptime(post_time, "%d %b %Y %H:%M")
         except:
-            print(f"[!] Something went wrong parsing {post_time}")
+            print(f"\r[!] Something went wrong parsing {post_time}")
             pass
 
         return str(post_time)
@@ -202,11 +203,11 @@ def get_posts_from_page(soup: BeautifulSoup, arg: argparse.Namespace) -> list:
     if len(post_elems) == 0:
         if arg.debug:
             print(
-                f"DEBUG: Can't find any tags of class : {msg['class']}",
+                f"\rDEBUG: Can't find any tags of class : {msg['class']}",
                 file=sys.stderr,
             )
             print(
-                f"DEBUG: Soup: {soup}",
+                f"\rDEBUG: Soup: {soup}",
                 file=sys.stderr,
             )
         return page_posts
@@ -276,29 +277,33 @@ def detect_alerts(soup: BeautifulSoup, arg: argparse.Namespace) -> bool:
                 # Ignore login error alerts
                 if arg.debug:
                     print(
-                        f"DEBUG: Ignoring (alert_errs) for : {item.getText()}{Fore.RESET}",
+                        f"\rDEBUG: Ignoring (alert_errs) for : {item.getText()}{Fore.RESET}",
                         file=sys.stderr,
                     )
             else:
                 got_alert = True
                 print(
-                    f"{Fore.RED}[!] Alert(error) : {item.getText()}{Fore.RESET}",
+                    f"\r{Fore.RED}[!] Alert(error) : {item.getText()}{Fore.RESET}",
                     file=sys.stderr,
                 )
 
     if alert_warns is not None:
         if "refresh the page" in alert_warns.getText():
             if arg.debug:
-                print(f"DEBUG: (alert_warns): {alert_warns}", file=sys.stderr)
+                print(f"\rDEBUG: (alert_warns): {alert_warns}", file=sys.stderr)
         else:
             if arg.debug:
-                print(f"DEBUG: (alert_warns): {alert_warns}", file=sys.stderr)
+                print(f"\rDEBUG: (alert_warns): {alert_warns}", file=sys.stderr)
 
     return got_alert
 
-
+@Halo(text='Dumping', spinner='dots')
 def dump_pages(
-    url: str, arg: argparse.Namespace, conn: sqlite3.Connection | None, PAGES_MAX: int, PAGE_PAUSE: int
+    url: str,
+    arg: argparse.Namespace,
+    conn: sqlite3.Connection | None,
+    PAGES_MAX: int,
+    PAGE_PAUSE: int,
 ) -> None:
     # Define how to detect additional pages of chat messages
     NEXT_PAGE = {"tag": "a", "class": "pager__link pager__link--next"}
@@ -339,27 +344,33 @@ def dump_pages(
         if posts_printed >= arg.posts_max:
             # We don't want any more chat posts than we have now
             if arg.debug:
-                print(f"DEBUG: posts_printed is >= {arg.posts_max}, exiting", file=sys.stderr)
+                print(
+                    f"\rDEBUG: posts_printed is >= {arg.posts_max}, exiting",
+                    file=sys.stderr,
+                )
             break
 
         if page_soup.find(NEXT_PAGE["tag"], class_=NEXT_PAGE["class"]) is None:
             if arg.debug:
                 print(
-                    f"DEBUG: Page {page_num}, and no next page found?", file=sys.stderr
+                    f"\rDEBUG: Page {page_num}, and no next page found?", file=sys.stderr
                 )
             break
         if page_soup.find(LAST_PAGE["tag"], class_=LAST_PAGE["class"]) is not None:
             if arg.debug:
-                print("DEBUG: Last chat page parsed", file=sys.stderr)
+                print("\rDEBUG: Last chat page parsed", file=sys.stderr)
             break
 
         if arg.debug:
-            print(f"DEBUG: Got {posts_printed} posts, sleeping...", file=sys.stderr)
+            print(f"\rDEBUG: Got {posts_printed} posts, sleeping...", file=sys.stderr)
         time.sleep(PAGE_PAUSE)
 
 
 def print_post(
-    arg: argparse.Namespace, soup_posts: list, posts_printed: int = 0, conn: None | sqlite3.Connection = None
+    arg: argparse.Namespace,
+    soup_posts: list,
+    posts_printed: int = 0,
+    conn: None | sqlite3.Connection = None,
 ) -> int:
     """
     Print an entire page of soup_posts, up to the args.posts_max limit
@@ -371,7 +382,7 @@ def print_post(
     if arg.debug:
         for chatpost in soup_posts:
             if posts_printed < arg.posts_max:
-                print(repr(chatpost), end="\n\n")
+                print('\r' + repr(chatpost), end="\n\n")
                 posts_printed += 1
             else:
                 break
@@ -385,18 +396,18 @@ def print_post(
                         if exists_in_db(conn, chatpost.hash()):
                             if not SEEN_SOME:
                                 print(
-                                    f"{Fore.LIGHTBLACK_EX}[!] Not showing some posts already saved{Fore.RESET}\n",
+                                    f"\r{Fore.LIGHTBLACK_EX}[!] Not showing some posts already saved{Fore.RESET}",
                                     file=sys.stderr,
                                 )
                             posts_printed += 1
                             SEEN_SOME = True
                         else:
                             add_to_db(conn, chatpost.hash(), chatpost)
-                            print(chatpost)
+                            print('\r' + str(chatpost))
                             posts_printed += 1
                             SEEN_SOME = False
                 else:
-                    print(chatpost)
+                    print('\r' + str(chatpost))
                     posts_printed += 1
             else:
                 break
