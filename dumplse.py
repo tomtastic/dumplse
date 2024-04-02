@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Dump chat messages for a given www.lse.co.uk user or ticker"""
 import argparse
-import json
 import requests
 import sqlite3
 import sys
@@ -23,7 +22,7 @@ def get_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--posts_max",
         "-p",
-        help="Maximum number of posts to return",
+        help="Maximum number of most recent posts to return",
         type=int,
         default=16384,
     )
@@ -34,18 +33,11 @@ def get_arguments() -> argparse.Namespace:
         action="store_true",
     )
     parser.add_argument(
-        "--reverse",
-        "-r",
-        help="Reverse post order",
-        action="store_true",
-    )
-    parser.add_argument(
         "--save",
         "-s",
-        help="Save hashes of viewed posts to sqliteDB, dont show posts again",
+        help="Save viewed posts to SQLiteDB, dont show posts again",
         action="store_true",
     )
-    parser.add_argument("--json", "-j", help="Print posts as JSON", action="store_true")
     parser.add_argument(
         "--debug", "-d", help="Print posts with repr", action="store_true"
     )
@@ -111,25 +103,9 @@ class ChatPost:
         hash.update(bytes(self.date + self.username + self.title + self.text, "utf8"))
         return hash.hexdigest()
 
-    def as_json(self) -> str:
-        """Method to format our object as JSON"""
-        return json.dumps(
-            {
-                "username": self.username,
-                "ticker": self.ticker,
-                "atprice": self.atprice,
-                "opinion": self.opinion,
-                "date": self.date,
-                "title": self.title,
-                "text": self.text,
-                "hash": self.hash(),
-            },
-            indent=4,
-        )
-
 
 def create_db(db_name: str) -> sqlite3.Connection:
-    """Creates an sqlite3 database file containing hashes of posts we've seen"""
+    """Creates an SQLite3 database file containing hashes of posts we've seen"""
     conn = sqlite3.connect(db_name)
     cursor = conn.cursor()
     try:
@@ -321,17 +297,16 @@ def detect_alerts(soup: BeautifulSoup, arg: argparse.Namespace) -> bool:
     return got_alert
 
 
-def get_all_pages(
-    url: str, arg: argparse.Namespace, PAGES_MAX: int, PAGE_PAUSE: int
-) -> list:
+def dump_pages(
+    url: str, arg: argparse.Namespace, conn: sqlite3.Connection | None, PAGES_MAX: int, PAGE_PAUSE: int
+) -> None:
     # Define how to detect additional pages of chat messages
     NEXT_PAGE = {"tag": "a", "class": "pager__link pager__link--next"}
     LAST_PAGE = {
         "tag": "a",
         "class": "pager__link pager__link--next pager__link--disabled",
     }
-    # Keep the chat post objects in this list
-    ALL_POSTS: list[ChatPost] = []
+    posts_printed: int = 0
 
     for page_num in range(1, PAGES_MAX):
         try:
@@ -357,8 +332,15 @@ def get_all_pages(
         soup_posts = get_posts_from_page(page_soup, arg)
         if len(soup_posts) == 0:
             break
-        for chatpost in soup_posts:
-            ALL_POSTS.append(chatpost)
+
+        # Print the posts from the page we just retrieved
+        posts_printed = print_post(arg, soup_posts, posts_printed, conn)
+
+        if posts_printed >= arg.posts_max:
+            # We don't want any more chat posts than we have now
+            if arg.debug:
+                print(f"DEBUG: posts_printed is >= {arg.posts_max}, exiting", file=sys.stderr)
+            break
 
         if page_soup.find(NEXT_PAGE["tag"], class_=NEXT_PAGE["class"]) is None:
             if arg.debug:
@@ -370,101 +352,78 @@ def get_all_pages(
             if arg.debug:
                 print("DEBUG: Last chat page parsed", file=sys.stderr)
             break
-        if len(ALL_POSTS) >= arg.posts_max:
-            # We don't want any more chat posts than we have now
-            if arg.debug:
-                print(f"DEBUG: ALL_POSTS is >= {arg.posts_max}", file=sys.stderr)
-            break
 
         if arg.debug:
-            print(f"DEBUG: Got {len(ALL_POSTS)} posts, sleeping...", file=sys.stderr)
+            print(f"DEBUG: Got {posts_printed} posts, sleeping...", file=sys.stderr)
         time.sleep(PAGE_PAUSE)
 
-    return ALL_POSTS
 
-
-def print_posts(
-    arg: argparse.Namespace, ALL_POSTS: list, conn: None | sqlite3.Connection = None
-) -> None:
+def print_post(
+    arg: argparse.Namespace, soup_posts: list, posts_printed: int = 0, conn: None | sqlite3.Connection = None
+) -> int:
+    """
+    Print an entire page of soup_posts, up to the args.posts_max limit
+    Optionally also saving the post to the provided SQLite DB connection
+    If saving the post, dont print posts which already exist in the DB
+    """
 
     SEEN_SOME = False
-    if arg.json:
-        print("[", end="")
-        if arg.reverse:
-            for index, chatpost in enumerate(reversed(ALL_POSTS[: arg.posts_max])):
-                print(chatpost.as_json(), end="")
-                if index < len(ALL_POSTS[: arg.posts_max]) - 1:
-                    print(",")
-        else:
-            for index, chatpost in enumerate(ALL_POSTS[: arg.posts_max]):
-                print(chatpost.as_json(), end="")
-                if index < len(ALL_POSTS[: arg.posts_max]) - 1:
-                    print(",")
-        print("]")
-    elif arg.debug:
-        for chatpost in ALL_POSTS[: arg.posts_max]:
-            print(repr(chatpost), end="\n\n")
-    elif arg.reverse:
-        for chatpost in reversed(ALL_POSTS[: arg.posts_max]):
-            if arg.save:
-                if isinstance(conn, sqlite3.Connection):
-                    if exists_in_db(conn, chatpost.hash()):
-                        if not SEEN_SOME:
-                            print(
-                                f"{Fore.LIGHTBLACK_EX}[!] Not showing some posts already seen{Fore.RESET}\n",
-                                file=sys.stderr,
-                            )
-                        SEEN_SOME = True
-                    else:
-                        add_to_db(conn, chatpost.hash())
-                        print(chatpost)
-                        SEEN_SOME = False
+    if arg.debug:
+        for chatpost in soup_posts:
+            if posts_printed < arg.posts_max:
+                print(repr(chatpost), end="\n\n")
+                posts_printed += 1
             else:
-                print(chatpost)
+                break
+
     else:
-        for chatpost in ALL_POSTS[: arg.posts_max]:
-            if arg.save:
-                if isinstance(conn, sqlite3.Connection):
-                    # Insert a hash of the post into the database
-                    if exists_in_db(conn, chatpost.hash()):
-                        if not SEEN_SOME:
-                            print(
-                                f"{Fore.LIGHTBLACK_EX}[!] Not showing some posts already seen{Fore.RESET}\n",
-                                file=sys.stderr,
-                            )
-                        SEEN_SOME = True
-                    else:
-                        add_to_db(conn, chatpost.hash(), chatpost)
-                        print(chatpost)
-                        SEEN_SOME = False
+        for chatpost in soup_posts:
+            if posts_printed < arg.posts_max:
+                if arg.save:
+                    if isinstance(conn, sqlite3.Connection):
+                        # Insert a hash of the post into the database
+                        if exists_in_db(conn, chatpost.hash()):
+                            if not SEEN_SOME:
+                                print(
+                                    f"{Fore.LIGHTBLACK_EX}[!] Not showing some posts already saved{Fore.RESET}\n",
+                                    file=sys.stderr,
+                                )
+                            posts_printed += 1
+                            SEEN_SOME = True
+                        else:
+                            add_to_db(conn, chatpost.hash(), chatpost)
+                            print(chatpost)
+                            posts_printed += 1
+                            SEEN_SOME = False
+                else:
+                    print(chatpost)
+                    posts_printed += 1
             else:
-                print(chatpost)
+                break
+
+    # We like to keep track of how many posts we've printed so far,
+    # in order we dont show more than the user supplied posts_max arg
+    return posts_printed
 
 
 def main() -> None:
-
     # Be nice to the LSE server
     PAGE_PAUSE = randrange(7)
     PAGES_MAX = 500
-
     # Parse the command arguments
     arg = get_arguments()
-
     url = ""
     if arg.user:
         url = "https://www.lse.co.uk/profiles/" + arg.user + "/?page="
     if arg.ticker:
         url = "https://www.lse.co.uk/ShareChat.asp?ShareTicker=" + arg.ticker + "&page="
-
     if arg.save:
         # Create and/or open the seen posts database
         conn = create_db("posts.sqlite3")
-        ALL_POSTS = get_all_pages(url, arg, PAGES_MAX, PAGE_PAUSE)
-        print_posts(arg, ALL_POSTS, conn)
+        dump_pages(url, arg, conn, PAGES_MAX, PAGE_PAUSE)
         conn.close()
     else:
-        ALL_POSTS = get_all_pages(url, arg, PAGES_MAX, PAGE_PAUSE)
-        print_posts(arg, ALL_POSTS)
+        dump_pages(url, arg, None, PAGES_MAX, PAGE_PAUSE)
 
 
 if __name__ == "__main__":
