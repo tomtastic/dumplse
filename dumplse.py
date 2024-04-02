@@ -25,7 +25,14 @@ def get_arguments() -> argparse.Namespace:
         "-p",
         help="Maximum number of most recent posts to return",
         type=int,
-        default=16384,
+        default=131072,
+    )
+    parser.add_argument(
+        "--page",
+        "-P",
+        help="The page to start from",
+        type=int,
+        default=1,
     )
     parser.add_argument(
         "--newlines",
@@ -46,10 +53,13 @@ def get_arguments() -> argparse.Namespace:
     if len(sys.argv) == 1:
         # pylint: disable=raising-bad-type
         raise parser.error("you must specify either user or ticker")
-    if _arg.posts_max and (_arg.posts_max < 1 or _arg.posts_max > 16384):
-        # Default 25 posts per page, max pages ~= 500, ergo 16384
+    if _arg.page and (_arg.page < 1 or _arg.page > 4096):
         # pylint: disable=raising-bad-type
-        raise parser.error("posts value must be between 1 and 16384")
+        raise parser.error("page value must be between 1 and 4096")
+    if _arg.posts_max and (_arg.posts_max < 1 or _arg.posts_max > 131072):
+        # Default 25 posts per page, max pages ~= 4096, ergo ~82k
+        # pylint: disable=raising-bad-type
+        raise parser.error("posts value must be between 1 and 131072")
     if _arg.user:
         _arg.user = _arg.user.lower()
     if _arg.ticker:
@@ -112,7 +122,7 @@ def create_db(db_name: str) -> sqlite3.Connection:
     try:
         cursor.execute(
             """
-            CREATE TABLE IF NOT EXISTS posts_seen
+            CREATE TABLE IF NOT EXISTS posts
             (hash TEXT PRIMARY KEY,
             username TEXT,
             ticker TEXT,
@@ -136,9 +146,7 @@ def exists_in_db(conn: sqlite3.Connection, hash: str) -> bool:
     """Check if a post hash exists in the database"""
     cursor = conn.cursor()
     try:
-        rows = cursor.execute(
-            f'SELECT * FROM posts_seen WHERE hash = "{hash}"'
-        ).fetchall()
+        rows = cursor.execute(f'SELECT * FROM posts WHERE hash = "{hash}"').fetchall()
         if len(rows) >= 1:
             return True
     except sqlite3.Error as e:
@@ -153,7 +161,7 @@ def add_to_db(conn: sqlite3.Connection, hash: str, p: ChatPost) -> None:
     cursor = conn.cursor()
     try:
         cursor.execute(
-            "INSERT INTO posts_seen (hash, username, ticker, atprice, opinion, date, title, text) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO posts (hash, username, ticker, atprice, opinion, date, title, text) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (hash, p.username, p.ticker, p.atprice, p.opinion, p.date, p.title, p.text),
         )
         conn.commit()
@@ -297,11 +305,13 @@ def detect_alerts(soup: BeautifulSoup, arg: argparse.Namespace) -> bool:
 
     return got_alert
 
-@Halo(text='Dumping', spinner='dots')
+
+@Halo(text="Dumping", spinner="dots")
 def dump_pages(
     url: str,
     arg: argparse.Namespace,
     conn: sqlite3.Connection | None,
+    PAGE_START: int,
     PAGES_MAX: int,
     PAGE_PAUSE: int,
 ) -> None:
@@ -313,7 +323,7 @@ def dump_pages(
     }
     posts_printed: int = 0
 
-    for page_num in range(1, PAGES_MAX):
+    for page_num in range(PAGE_START, PAGES_MAX):
         try:
             # firefox on MacOS
             headers = {
@@ -321,7 +331,7 @@ def dump_pages(
                 " AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.2 Safari/605.1.15"
             }
             if arg.debug:
-                print(f"[+] Getting {url}")
+                print(f"[+] Getting {url}{page_num}")
             page = requests.get(url + str(page_num), headers=headers)
         except requests.exceptions.RequestException as get_error:
             print(f"{Fore.RED}[!] Error: {get_error}{Fore.RESET}", file=sys.stderr)
@@ -353,7 +363,8 @@ def dump_pages(
         if page_soup.find(NEXT_PAGE["tag"], class_=NEXT_PAGE["class"]) is None:
             if arg.debug:
                 print(
-                    f"\rDEBUG: Page {page_num}, and no next page found?", file=sys.stderr
+                    f"\rDEBUG: Page {page_num}, and no next page found?",
+                    file=sys.stderr,
                 )
             break
         if page_soup.find(LAST_PAGE["tag"], class_=LAST_PAGE["class"]) is not None:
@@ -382,7 +393,7 @@ def print_post(
     if arg.debug:
         for chatpost in soup_posts:
             if posts_printed < arg.posts_max:
-                print('\r' + repr(chatpost), end="\n\n")
+                print("\r" + repr(chatpost), end="\n\n")
                 posts_printed += 1
             else:
                 break
@@ -403,11 +414,11 @@ def print_post(
                             SEEN_SOME = True
                         else:
                             add_to_db(conn, chatpost.hash(), chatpost)
-                            print('\r' + str(chatpost))
+                            print("\r" + str(chatpost))
                             posts_printed += 1
                             SEEN_SOME = False
                 else:
-                    print('\r' + str(chatpost))
+                    print("\r" + str(chatpost))
                     posts_printed += 1
             else:
                 break
@@ -420,7 +431,8 @@ def print_post(
 def main() -> None:
     # Be nice to the LSE server
     PAGE_PAUSE = randrange(7)
-    PAGES_MAX = 500
+    PAGES_MAX = 4096
+    PAGE_START = 1
     # Parse the command arguments
     arg = get_arguments()
     url = ""
@@ -428,13 +440,15 @@ def main() -> None:
         url = "https://www.lse.co.uk/profiles/" + arg.user + "/?page="
     if arg.ticker:
         url = "https://www.lse.co.uk/ShareChat.asp?ShareTicker=" + arg.ticker + "&page="
+    if arg.page:
+        PAGE_START = arg.page
     if arg.save:
         # Create and/or open the seen posts database
         conn = create_db("posts.sqlite3")
-        dump_pages(url, arg, conn, PAGES_MAX, PAGE_PAUSE)
+        dump_pages(url, arg, conn, PAGE_START, PAGES_MAX, PAGE_PAUSE)
         conn.close()
     else:
-        dump_pages(url, arg, None, PAGES_MAX, PAGE_PAUSE)
+        dump_pages(url, arg, None, PAGE_START, PAGES_MAX, PAGE_PAUSE)
 
 
 if __name__ == "__main__":
