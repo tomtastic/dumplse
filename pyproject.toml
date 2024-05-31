@@ -1,23 +1,31 @@
-[tool.poetry]
+[project]
 name = "dumplse"
 version = "0.2.0"
+readme = "README.md"
 description = "Dump share chat data from LSE"
-authors = ["tomtastic"]
+authors = [
+    {name = "tomtastic"},
+]
+requires-python = "<4.0,>=3.10"
+dependencies = [
+    "beautifulsoup4<5.0,>=4.12",
+    "colorama<1.0.0,>=0.4.4",
+    "requests<3.0.0,>=2.26.0",
+    "halo<1.0.0,>=0.0.31",
+]
 
-[tool.poetry.dependencies]
-python = "^3.10"
-beautifulsoup4 = "^4.12"
-colorama = "^0.4.4"
-requests = "^2.26.0"
-halo = "^0.0.31"
+[dependency-groups]
+dev = [
+    "mypy<2.0.0,>=1.9.0",
+    "black<21.0,>=20.8b1",
+    "types-beautifulsoup4<5.0,>=4.12",
+    "types-colorama<1.0.0,>=0.4.15",
+    "types-requests<3.0,>=2.30",
+    "types-python-dateutil<3.0.0,>=2.9.0",
+]
 
-[tool.poetry.group.dev.dependencies]
-mypy = "^1.9.0"
-black = "^20.8b1"
-types-beautifulsoup4 = "^4.12"
-types-colorama = "^0.4.15"
-types-requests = "^2.30"
-types-python-dateutil = "^2.9.0"
+[tool.uv]
+default-groups = []
 
 [tool.mypy]
 python_executable = "/opt/homebrew/bin/python3"
@@ -25,5 +33,5 @@ disallow_untyped_defs = "True"
 disallow_untyped_calls = "True"
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
