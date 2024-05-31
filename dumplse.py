@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Dump chat messages for a given www.lse.co.uk user or ticker"""
 import argparse
+import asyncio
 import requests
 import sqlite3
 import sys
@@ -313,19 +314,24 @@ def dump_pages(
     conn: sqlite3.Connection | None,
     PAGE_START: int,
     PAGES_MAX: int,
-    PAGE_PAUSE: int,
 ) -> None:
     # Define how to detect additional pages of chat messages
     NEXT_PAGE = {"tag": "a", "class": "pager__link pager__link--next"}
+    # FIXME, last page detection is broken.
+    # This is the next button...can we extract the page number from it to check?
+    # Because when it's at the last page, it references the current page number
+    # <a href="https://www.lse.co.uk/ShareChat.html?ShareTicker=AFC&amp;share=AFC-Energy&amp;page=3" class="pager__link pager__link--next">
     LAST_PAGE = {
         "tag": "a",
         "class": "pager__link pager__link--next pager__link--disabled",
     }
+    PAGE_PAUSE_MAX = 5
     posts_printed: int = 0
 
     for page_num in range(PAGE_START, PAGES_MAX):
         try:
             # firefox on MacOS
+            # FIXME, cookies = {"chat_page_size":"50"}
             headers = {
                 "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
                 " AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.2 Safari/605.1.15"
@@ -368,14 +374,18 @@ def dump_pages(
                 )
             break
         if page_soup.find(LAST_PAGE["tag"], class_=LAST_PAGE["class"]) is not None:
+            # This is broken now, no last page tag in the source
             if arg.debug:
                 print("\rDEBUG: Last chat page parsed", file=sys.stderr)
             break
 
-        if arg.debug:
-            print(f"\rDEBUG: Got {posts_printed} posts, sleeping...", file=sys.stderr)
-        time.sleep(PAGE_PAUSE)
+        random_pause = randrange(PAGE_PAUSE_MAX)
 
+        if arg.debug:
+            print(f"\rDEBUG: Got {posts_printed} posts,"
+                  f"sleeping for {random_pause} secs...", file=sys.stderr)
+
+        time.sleep(random_pause)
 
 def print_post(
     arg: argparse.Namespace,
@@ -430,12 +440,11 @@ def print_post(
 
 def main() -> None:
     # Be nice to the LSE server
-    PAGE_PAUSE = randrange(7)
-    PAGES_MAX = 4096
-    PAGE_START = 1
+    PAGES_MAX: int = 4096
+    PAGE_START: int = 1
     # Parse the command arguments
     arg = get_arguments()
-    url = ""
+    url: str = ""
     if arg.user:
         url = "https://www.lse.co.uk/profiles/" + arg.user + "/?page="
     if arg.ticker:
@@ -445,10 +454,10 @@ def main() -> None:
     if arg.save:
         # Create and/or open the seen posts database
         conn = create_db("posts.sqlite3")
-        dump_pages(url, arg, conn, PAGE_START, PAGES_MAX, PAGE_PAUSE)
+        dump_pages(url, arg, conn, PAGE_START, PAGES_MAX)
         conn.close()
     else:
-        dump_pages(url, arg, None, PAGE_START, PAGES_MAX, PAGE_PAUSE)
+        dump_pages(url, arg, None, PAGE_START, PAGES_MAX)
 
 
 if __name__ == "__main__":
