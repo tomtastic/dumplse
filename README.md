@@ -5,13 +5,13 @@
 ### Install dependancies
 
 ```shell
-    $ poetry install
+    $ uv init
 ```
 
 ### View command syntax
 
 ```shell
-    $ poetry run python dumplse.py -h
+    $ uv run dumplse.py -h
     usage: dumplse.py [-h] [--user USER | --ticker TICKER] [--posts_max POSTS_MAX] [--newlines] [--reverse] [--json] [--debug]
 
     options:
@@ -29,7 +29,7 @@
 ### Dump latest posts for a user (limited to 1 posts)
 
 ```shell
-    $ poetry run python dumplse.py -u tomtastic -p 1
+    $ uv run dumplse.py -u tomtastic -p 1
     tomtastic        [AFC] @14.00 (23 Dec 2019 07:39)    RE: W2T
     Of course, for the White family and Tim Yeo, they get to exchange their presumed worthless shares in W2T for a decent chunk of PHE. Quite a nice move from their perspective, but I look forward be being told what PHE will materially gain from the arrangements.  (I simply cant take anything on AIM at face value).
 ```
@@ -37,7 +37,7 @@
 ### Dump latest posts for a user (limited to 1 post, with unstripped-newlines)
 
 ```shell
-    $ poetry run python dumplse.py -u tomtastic -p 1 -n
+    $ uv run dumplse.py -u tomtastic -p 1 -n
     tomtastic        [AFC] @14.00 (23 Dec 2019 07:39)    RE: W2T
     Of course, for the White family and Tim Yeo, they get to exchange their presumed worthless shares in W2T for a decent chunk of PHE. Quite a nice move from their perspective, but I look forward be being told what PHE will materially gain from the arrangements.
 ```
@@ -45,7 +45,7 @@
 ### Dump latest posts for a ticker symbol (limited to 2 posts, with unstripped-newlines)
 
 ```shell
-    $ poetry run python dumplse.py -t RDSB -p 2 -n
+    $ uv run dumplse.py -t RDSB -p 2 -n
     bald_eagle       [RDSB] @1,686.60 (Today 11:27)          RE: Blue hydrogen
     "When the truth comes out it will make fossil fuel extraction look green by comparison."
     =============================================================================
