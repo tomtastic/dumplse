@@ -3,3 +3,6 @@ dump.*
 dist
 *.py.swp
 .venv
+*.out
+.mypy_cache
+.idea
