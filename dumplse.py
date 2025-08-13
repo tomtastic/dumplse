@@ -6,6 +6,7 @@ import requests
 import sqlite3
 import sys
 import time
+import ast
 from bs4 import BeautifulSoup
 from colorama import Fore
 from dataclasses import dataclass
