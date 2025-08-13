@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 #!/usr/bin/env python3
 r"""
 A tool to normalise times to the nearest multiple (eg. 60minutes), so a distribution can be viewed more readily
@@ -29,6 +30,8 @@ eg.
     AnneOwl 2200| 9 (2.62%) ----------------
     AnneOwl 2300| 8 (2.33%) --------------
 """
+=======
+>>>>>>> cbc04de (util to normalise timestamps)
 import sys
 import os
 
