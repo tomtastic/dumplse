@@ -19,28 +19,6 @@ from selenium_stealth import stealth
 from selenium.common.exceptions import InvalidSessionIdException
 
 
-def gen_driver() -> uc.Chrome | None:
-    try:
-        user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.6167.140 Safari/537.36"
-        chrome_options = uc.ChromeOptions()
-        chrome_options.add_argument('--headless=new')
-        chrome_options.add_argument("--start-maximized")
-        chrome_options.add_argument("user-agent={}".format(user_agent))
-        driver = uc.Chrome(options=chrome_options)
-        stealth(driver,
-                languages=["en-US", "en"],
-                vendor="Google Inc.",
-                platform="Win32",
-                webgl_vendor="Intel Inc.",
-                renderer="Intel Iris OpenGL Engine",
-                fix_hairline=True
-        )
-        return driver
-    except Exception as e:
-        print("Error in Driver: ",e)
-        return None
-
-
 def get_arguments() -> argparse.Namespace:
     """Parse the command arguments"""
     parser = argparse.ArgumentParser()
@@ -333,6 +311,31 @@ def detect_alerts(soup: BeautifulSoup, arg: argparse.Namespace) -> bool:
     return got_alert
 
 
+def gen_driver() -> uc.Chrome | None:
+    try:
+        user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.6167.140 Safari/537.36"
+        chrome_options = uc.ChromeOptions()
+        chrome_options.add_argument('--headless=new')
+        chrome_options.add_argument("--start-maximized")
+        chrome_options.add_argument("user-agent={}".format(user_agent))
+        driver = uc.Chrome(options=chrome_options)
+        stealth(driver,
+                languages=["en-US", "en"],
+                vendor="Google Inc.",
+                platform="Win32",
+                webgl_vendor="Intel Inc.",
+                renderer="Intel Iris OpenGL Engine",
+                fix_hairline=True
+        )
+        if driver is None:
+            print(f"{Fore.RED}[!] Error: Failed to generate Selenium driver{Fore.RESET}", file=sys.stderr)
+            sys.exit(1)
+        return driver
+    except Exception as e:
+        print("Error in Driver: ",e)
+        return None
+
+
 @Halo(text="Dumping", spinner="dots")
 def dump_pages(
     url: str,
@@ -355,9 +358,6 @@ def dump_pages(
     posts_printed: int = 0
 
     driver = gen_driver()
-    if driver is None:
-        print(f"{Fore.RED}[!] Error: Failed to generate Selenium driver{Fore.RESET}", file=sys.stderr)
-        sys.exit(1)
 
     for page_num in range(PAGE_START, PAGES_MAX):
         random_pause = randrange(PAGE_PAUSE_MAX)
@@ -378,6 +378,9 @@ def dump_pages(
                 except InvalidSessionIdException as e:
                     print(f"{Fore.RED}[!] Error: {e}{Fore.RESET}", file=sys.stderr)
                     time.sleep(random_pause)
+                    driver.close()
+                    time.sleep(random_pause)
+                    driver = gen_driver()
                     pass
             root_elem = driver.find_element("xpath", "//*")
             page = root_elem.get_attribute("outerHTML")
