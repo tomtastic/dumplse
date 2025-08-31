@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """Dump chat messages for a given www.lse.co.uk user or ticker"""
 import argparse
-import asyncio
-import requests
+# import asyncio
 import sqlite3
 import sys
 import time
-import ast
+# import ast
 from bs4 import BeautifulSoup
 from colorama import Fore
 from dataclasses import dataclass
@@ -14,6 +13,32 @@ from datetime import datetime
 from halo import Halo
 from hashlib import sha256
 from random import randrange
+
+import undetected_chromedriver as uc
+from selenium_stealth import stealth
+from selenium.common.exceptions import InvalidSessionIdException
+
+
+def gen_driver() -> uc.Chrome | None:
+    try:
+        user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.6167.140 Safari/537.36"
+        chrome_options = uc.ChromeOptions()
+        chrome_options.add_argument('--headless=new')
+        chrome_options.add_argument("--start-maximized")
+        chrome_options.add_argument("user-agent={}".format(user_agent))
+        driver = uc.Chrome(options=chrome_options)
+        stealth(driver,
+                languages=["en-US", "en"],
+                vendor="Google Inc.",
+                platform="Win32",
+                webgl_vendor="Intel Inc.",
+                renderer="Intel Iris OpenGL Engine",
+                fix_hairline=True
+        )
+        return driver
+    except Exception as e:
+        print("Error in Driver: ",e)
+        return None
 
 
 def get_arguments() -> argparse.Namespace:
@@ -329,22 +354,41 @@ def dump_pages(
     PAGE_PAUSE_MAX = 5
     posts_printed: int = 0
 
+    driver = gen_driver()
+    if driver is None:
+        print(f"{Fore.RED}[!] Error: Failed to generate Selenium driver{Fore.RESET}", file=sys.stderr)
+        sys.exit(1)
+
     for page_num in range(PAGE_START, PAGES_MAX):
+        random_pause = randrange(PAGE_PAUSE_MAX)
         try:
             # firefox on MacOS
             # FIXME, cookies = {"chat_page_size":"50"}
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
-                " AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.2 Safari/605.1.15"
-            }
+            #headers = {
+            #    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
+            #    " AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.2 Safari/605.1.15"
+            #}
             if arg.debug:
                 print(f"[+] Getting {url}{page_num}")
-            page = requests.get(url + str(page_num), headers=headers)
-        except requests.exceptions.RequestException as get_error:
+
+            for _ in range(5):
+                try:
+                    driver.get(url + str(page_num))
+                    break
+                except InvalidSessionIdException as e:
+                    print(f"{Fore.RED}[!] Error: {e}{Fore.RESET}", file=sys.stderr)
+                    time.sleep(random_pause)
+                    pass
+            root_elem = driver.find_element("xpath", "//*")
+            page = root_elem.get_attribute("outerHTML")
+        # except requests.exceptions.RequestException as get_error:
+        except Exception as get_error:
             print(f"{Fore.RED}[!] Error: {get_error}{Fore.RESET}", file=sys.stderr)
+            driver.close()
             sys.exit(1)
 
-        page_soup = BeautifulSoup(page.content, "html.parser")
+        page_soup = BeautifulSoup(page, "html.parser")
+        BeautifulSoup()
 
         # On occasion, LSE will enforce logins before chat can be viewed :<
         if page_num == 1:
@@ -380,13 +424,14 @@ def dump_pages(
                 print("\rDEBUG: Last chat page parsed", file=sys.stderr)
             break
 
-        random_pause = randrange(PAGE_PAUSE_MAX)
-
         if arg.debug:
             print(f"\rDEBUG: Got {posts_printed} posts,"
                   f"sleeping for {random_pause} secs...", file=sys.stderr)
 
         time.sleep(random_pause)
+
+    driver.close()
+
 
 def print_post(
     arg: argparse.Namespace,
@@ -418,7 +463,7 @@ def print_post(
                         if exists_in_db(conn, chatpost.hash()):
                             if not SEEN_SOME:
                                 print(
-                                    f"\r{Fore.LIGHTBLACK_EX}[!] Not showing some posts already saved{Fore.RESET}",
+                                    f"\r{Fore.LIGHTBLACK_EX}[!] Not showing some posts {posts_printed} already saved{Fore.RESET}",
                                     file=sys.stderr,
                                 )
                             posts_printed += 1
