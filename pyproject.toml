@@ -8,6 +8,8 @@ authors = [
 ]
 requires-python = "<4.0,>=3.10"
 dependencies = [
+    "undetected_chromedriver>=3.5.5",
+    "selenium_stealth>=1.0.6",
     "beautifulsoup4<5.0,>=4.12",
     "colorama<1.0.0,>=0.4.4",
     "requests<3.0.0,>=2.26.0",
